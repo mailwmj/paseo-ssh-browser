@@ -1,0 +1,8 @@
+{
+  "id": "ssh-ports",
+  "name": "SSH Ports",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.13.0"
+  }
+}
