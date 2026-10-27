@@ -4,6 +4,14 @@ import { parseHostRegistry, type HostRegistry } from "./format";
 // This plugin typechecks without the DOM library. Declare only what this module uses.
 declare const localStorage: { getItem(key: string): string | null };
 
+export function isDesktop(): boolean {
+  return Platform.OS === "web" && !!(globalThis as unknown as { paseoDesktop?: unknown }).paseoDesktop;
+}
+
+export function newClientId(): string {
+  return globalThis.crypto.randomUUID();
+}
+
 // Paseo Desktop keeps its saved hosts in the app's web storage. This is not a plugin API, so when
 // it changes or is missing, nothing is found and the screen asks for an SSH host instead.
 export function readHostRegistry(): HostRegistry {

@@ -9,6 +9,7 @@ if (process.env.FAKE_SSH_FAIL) {
   process.exit(255);
 }
 const server = net.createServer((socket) => socket.end());
-setTimeout(() => server.listen(localPort, "127.0.0.1"), 300);
+server.on("error", (error) => { process.stderr.write(error.message); process.exit(255); });
+setTimeout(() => server.listen(localPort, "127.0.0.1", () => process.stdout.write("ssh-browser-forward-ready\n")), 300);
 process.stdin.resume();
 process.stdin.on("end", () => process.exit(0));

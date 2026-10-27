@@ -4,11 +4,12 @@ import type { Forward } from "../shared/ports";
 import { lastLine, SSH_BASE_ARGS } from "./ssh";
 
 const READY_TIMEOUT_MS = 20_000;
+const READY_MARKER = "ssh-browser-forward-ready";
 
 export type SpawnSsh = (args: string[]) => ChildProcess;
 
 const spawnSsh: SpawnSsh = (args) =>
-  spawn("ssh", args, { stdio: ["pipe", "ignore", "pipe"], windowsHide: true });
+  spawn("ssh", args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
 
 interface Tunnel {
   forward: Forward;
@@ -20,6 +21,8 @@ interface Tunnel {
 // this subprocess dies without cleanup, the pipe closes and ssh exits instead of lingering.
 export class TunnelManager {
   private readonly tunnels = new Map<string, Tunnel>();
+  private readonly opening = new Map<string, Promise<Forward>>();
+  private stopped = false;
 
   constructor(private readonly spawnProcess: SpawnSsh = spawnSsh) {}
 
@@ -28,15 +31,27 @@ export class TunnelManager {
   }
 
   async open(target: string, remoteHost: string, remotePort: number): Promise<Forward> {
-    const key = tunnelKey(target, remotePort);
+    if (this.stopped) throw new Error("SSH Browser stopped");
+    const key = tunnelKey(target, remoteHost, remotePort);
+    const opening = this.opening.get(key);
+    if (opening) return opening;
+    const promise = this.start(target, remoteHost, remotePort, key);
+    this.opening.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      this.opening.delete(key);
+    }
+  }
+
+  private async start(target: string, remoteHost: string, remotePort: number, key: string): Promise<Forward> {
     const existing = this.tunnels.get(key);
-    if (existing && existing.forward.remoteHost === remoteHost) {
+    if (existing) {
       await existing.ready;
       return existing.forward;
     }
-    if (existing) this.close(target, remotePort);
-
     const localPort = await chooseLocalPort(remotePort);
+    if (this.stopped) throw new Error("SSH Browser stopped");
     const destination = remoteHost.includes(":") ? `[${remoteHost}]` : remoteHost;
     const child = this.spawnProcess([
       ...SSH_BASE_ARGS,
@@ -47,10 +62,10 @@ export class TunnelManager {
       "-o",
       "ServerAliveCountMax=3",
       "-L",
-      `localhost:${localPort}:${destination}:${remotePort}`,
+      `127.0.0.1:${localPort}:${destination}:${remotePort}`,
       "--",
       target,
-      "cat >/dev/null",
+      `printf '${READY_MARKER}\\n'; cat >/dev/null`,
     ]);
     const forward: Forward = {
       target,
@@ -59,7 +74,7 @@ export class TunnelManager {
       localPort,
       url: `http://localhost:${localPort}/`,
     };
-    const tunnel: Tunnel = { forward, child, ready: waitUntilReady(child, localPort) };
+    const tunnel: Tunnel = { forward, child, ready: waitUntilReady(child) };
     this.tunnels.set(key, tunnel);
     child.on("close", () => {
       if (this.tunnels.get(key) === tunnel) this.tunnels.delete(key);
@@ -67,28 +82,30 @@ export class TunnelManager {
     try {
       await tunnel.ready;
     } catch (error) {
-      this.close(target, remotePort);
+      if (this.tunnels.get(key) === tunnel) this.tunnels.delete(key);
+      child.kill();
       throw error;
     }
     return forward;
   }
 
   close(target: string, remotePort: number): void {
-    const key = tunnelKey(target, remotePort);
-    const tunnel = this.tunnels.get(key);
-    if (!tunnel) return;
-    this.tunnels.delete(key);
-    tunnel.child.kill();
+    for (const [key, tunnel] of this.tunnels) {
+      if (tunnel.forward.target !== target || tunnel.forward.remotePort !== remotePort) continue;
+      this.tunnels.delete(key);
+      tunnel.child.kill();
+    }
   }
 
   closeAll(): void {
+    this.stopped = true;
     for (const tunnel of this.tunnels.values()) tunnel.child.kill();
     this.tunnels.clear();
   }
 }
 
-function tunnelKey(target: string, remotePort: number): string {
-  return `${target}|${remotePort}`;
+function tunnelKey(target: string, remoteHost: string, remotePort: number): string {
+  return `${target}|${remoteHost}|${remotePort}`;
 }
 
 // Keep the remote port number when it is free locally so URLs, cookies, and OAuth callbacks
@@ -130,16 +147,16 @@ function freeLocalPort(): Promise<number> {
   });
 }
 
-function waitUntilReady(child: ChildProcess, localPort: number): Promise<void> {
+function waitUntilReady(child: ChildProcess): Promise<void> {
   return new Promise((resolve, reject) => {
     let stderr = "";
+    let stdout = "";
     let settled = false;
     child.stderr?.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      clearInterval(poll);
       if (error) reject(error);
       else resolve();
     };
@@ -151,13 +168,11 @@ function waitUntilReady(child: ChildProcess, localPort: number): Promise<void> {
     child.once("close", (code) =>
       finish(new Error(lastLine(stderr) ?? `ssh exited with code ${code}`)),
     );
-    const poll = setInterval(() => {
-      const socket = net.connect({ host: "127.0.0.1", port: localPort });
-      socket.once("connect", () => {
-        socket.destroy();
-        finish();
-      });
-      socket.once("error", () => socket.destroy());
-    }, 150);
+    // ssh runs this remote command only after forwarding setup succeeds. A TCP probe alone
+    // could connect to an unrelated process that won the local bind race.
+    child.stdout?.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+      if (stdout.split(/\r?\n/).includes(READY_MARKER)) finish();
+    });
   });
 }

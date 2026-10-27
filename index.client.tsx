@@ -1,5 +1,8 @@
 import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
+import { useEffect } from "react";
+import { AutomaticBrowser } from "./client/automatic-browser";
+import { startOpenClient } from "./client/open-client";
 import { buildLocalApi, publishLocalApi, RPCS } from "./client/bridge";
 import { BrowserPanel } from "./client/browser-panel";
 import { messages } from "./client/messages";
@@ -17,14 +20,22 @@ function PortsItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
 }
 
 export default function contribute(client: PluginClientContext) {
+  const automaticBrowser = new AutomaticBrowser();
   client.addScreen({ id: "ports", title: messages.message("name"), Component: PortsScreen });
   client.addSidebarHeaderItem({ id: "ports", title: messages.message("name"), Component: PortsItem });
   client.addWorkspacePanel({
     id: "browser",
     title: messages.message("name"),
     icon: "Globe",
-    Component: BrowserPanel,
+    Component: function AgentBrowserPanel(props) {
+      useEffect(
+        () => automaticBrowser.attach(props.workspaceId, props.navigation?.openBrowser),
+        [props.workspaceId, props.navigation?.openBrowser],
+      );
+      return <BrowserPanel {...props} suppressAutoOpen={() => automaticBrowser.hasRequested(props.workspaceId)} />;
+    },
   });
+  const stopOpenClient = startOpenClient(client, automaticBrowser);
   client.addCommandCenterItem({
     id: "open-ports",
     title: messages.message("open"),
@@ -59,6 +70,7 @@ export default function contribute(client: PluginClientContext) {
 
   return () => {
     stopped = true;
+    stopOpenClient();
     unpublish();
   };
 }

@@ -10,7 +10,7 @@ import {
   type Forward,
 } from "../shared/ports";
 
-const BRIDGE_VERSION = 2;
+const BRIDGE_VERSION = 3;
 
 // Tunnels have to start on the computer running the app, so every surface, whichever host's copy
 // of the plugin renders it, calls the copy installed on this computer's own Paseo host. Paseo runs
