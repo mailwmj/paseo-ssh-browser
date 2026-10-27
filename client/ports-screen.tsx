@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { sshTarget } from "../shared/ports";
 import { groupPortsByWorkspace, workspaceLabel } from "./format";
+import type { WorkspaceEntry } from "./format";
 import { errorMessage } from "./kit";
 import { messages } from "./messages";
 import type { LocalApi } from "./bridge";
@@ -199,7 +200,8 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
                 {rows.map((row) => (
                   <PortCard key={row.port} row={row} opening={ports.opening === row.port}
                     forwardStatus={ports.forwardStatus} styles={styles} theme={theme}
-                    onOpen={(external) => ports.open(row, { external }).catch((error) => toast.error(errorMessage(error)))}
+                    workspaces={ports.canOpenWorkspace ? [...ports.workspacesById.values()] : []}
+                    onOpen={(options) => ports.open(row, options).catch((error) => toast.error(errorMessage(error)))}
                     onClose={() => ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} />
                 ))}
               </View>
@@ -211,13 +213,15 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
   );
 }
 
-function PortCard({ row, opening, forwardStatus, styles, theme, onOpen, onClose }: {
+function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOpen, onClose }: {
   row: Row; opening: boolean; forwardStatus: "ready" | "error" | "loading"; styles: Styles; theme: PluginTheme;
-  onOpen: (external: boolean) => void; onClose: () => Promise<void>;
+  workspaces: WorkspaceEntry[];
+  onOpen: (options?: { external?: boolean; workspaceId?: string }) => void; onClose: () => Promise<void>;
 }) {
   const { t } = useTranslation(messages);
   const [closing, setClosing] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [selectingWorkspace, setSelectingWorkspace] = useState(false);
   const title = row.label ?? t("portTitle", { port: row.port });
   const forward = forwardStatus === "ready" ? row.forward : undefined;
   const status = forwardStatus === "loading" ? t("checkingForward") : forwardStatus === "error" ? t("forwardUnavailable") :
@@ -231,7 +235,7 @@ function PortCard({ row, opening, forwardStatus, styles, theme, onOpen, onClose 
   return (
     <View style={styles.card}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${t("openPage", { title })}, ${status}`}
-        accessibilityState={{ disabled: busy, busy: opening }} disabled={busy} onPress={() => onOpen(false)}
+        accessibilityState={{ disabled: busy, busy: opening }} disabled={busy} onPress={() => onOpen()}
         style={({ pressed }) => [styles.cardMain, pressed && styles.cardPressed]}>
         <View style={styles.cardHead}>
           <Icon name="Globe" size={19} color={theme.colors.foregroundMuted} />
@@ -249,23 +253,38 @@ function PortCard({ row, opening, forwardStatus, styles, theme, onOpen, onClose 
           <View style={styles.openAction}><Text style={styles.openActionText}>{t("openAction")}</Text><Icon name="ArrowRight" size={14} color={theme.colors.foreground} /></View>
         </View>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
+      {row.workspaceId || workspaces.length > 0 || forward ? <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
         accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => setActionsOpen(true)}
         style={({ pressed }) => [styles.cardMenu, pressed && styles.pressed]}>
         <Icon name="Ellipsis" size={18} color={theme.colors.foregroundMuted} />
-      </Pressable>
+      </Pressable> : null}
       <Modal title={title} open={actionsOpen} onOpenChange={setActionsOpen}>
         <Modal.Content>
-          <Pressable accessibilityRole="button" onPress={() => { setActionsOpen(false); onOpen(true); }} style={styles.menuAction}>
+          {row.workspaceId ? <Pressable accessibilityRole="button" onPress={() => { setActionsOpen(false); onOpen({ external: true }); }} style={styles.menuAction}>
             <Icon name="ExternalLink" size={16} color={theme.colors.foregroundMuted} />
             <Text style={styles.menuActionText}>{t("openExternal", { title })}</Text>
-          </Pressable>
+          </Pressable> : workspaces.length > 0 ? <Pressable accessibilityRole="button" onPress={() => { setActionsOpen(false); setSelectingWorkspace(true); }} style={styles.menuAction}>
+            <Icon name="Folder" size={16} color={theme.colors.foregroundMuted} />
+            <Text style={styles.menuActionText}>{t("openInWorkspace")}</Text>
+          </Pressable> : null}
           {forward ? (
             <Pressable accessibilityRole="button" onPress={() => void close()} style={styles.menuAction}>
               <Icon name="Unplug" size={16} color={theme.colors.foregroundMuted} />
               <Text style={styles.menuActionText}>{t("unplug", { port: row.port })}</Text>
             </Pressable>
           ) : null}
+        </Modal.Content>
+      </Modal>
+      <Modal title={t("selectWorkspace")} open={selectingWorkspace} onOpenChange={setSelectingWorkspace}>
+        <Modal.Content>
+          <ScrollView style={styles.workspaceChoices}>
+            {workspaces.map((workspace) => (
+              <Pressable key={workspace.id} accessibilityRole="button" onPress={() => { setSelectingWorkspace(false); onOpen({ workspaceId: workspace.id }); }} style={styles.menuAction}>
+                <Icon name="Folder" size={16} color={theme.colors.foregroundMuted} />
+                <Text style={styles.menuActionText}>{workspaceLabel(workspace)}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </Modal.Content>
       </Modal>
     </View>
@@ -396,6 +415,7 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     openActionText: { color: colors.foreground, fontSize: 13 },
     cardMenu: { position: "absolute" as const, right: 8, top: 8, width: 36, height: 36, alignItems: "center" as const, justifyContent: "center" as const },
     menuAction: { minHeight: 44, flexDirection: "row" as const, alignItems: "center" as const, gap: 12 },
+    workspaceChoices: { maxHeight: 400 },
     menuActionText: { flex: 1, color: colors.foreground, fontSize: 14 },
     loadingState: { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
     emptyHosts: { alignItems: "center" as const, gap: 8, paddingTop: compact ? 20 : 32 },

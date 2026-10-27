@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import type { Forward } from "../shared/ports";
 import { buildLocalApi, RPCS, useLocalApi, type LocalApi } from "./bridge";
-import { attributePorts, pickWorkspace, workspaceDirectories, type PortRow, type WorkspaceEntry } from "./format";
+import { attributePorts, type PortRow, type WorkspaceEntry } from "./format";
 import { readHostRegistry } from "./web";
 
 export interface Row extends PortRow {
@@ -107,9 +107,7 @@ export function useHostPorts({
       const url = `http://localhost:${forward.localPort}${options.path ?? "/"}`;
       const openBrowser = navigation?.openBrowser;
       if (!options.external && openBrowser && online && serverId) {
-        const directories = workspaceDirectories(workspaces.data ?? (await workspaces.refetch()).data ?? []);
-        const workspaceId =
-          options.workspaceId ?? row.workspaceId ?? pickWorkspace(directories, row.cwd) ?? directories[0]?.id;
+        const workspaceId = options.workspaceId ?? row.workspaceId;
         if (workspaceId) {
           openBrowser({ url, workspaceId, serverId });
           return;
@@ -141,6 +139,7 @@ export function useHostPorts({
   return {
     rows,
     workspacesById,
+    canOpenWorkspace: Boolean(navigation?.openBrowser && online && serverId),
     loaded: scanned.isSuccess && (workspaces.isSuccess || !online),
     scanComplete: scanned.isSuccess,
     loading: api !== null && (scanned.isPending || refreshing),

@@ -69,6 +69,7 @@ function Pages({
   const rows = ports.rows.filter((row) => row.workspaceId === workspaceId);
   const [state, setState] = useTabState(tab, tabSchema, { autoOpened: false });
   const [address, setAddress] = useState("");
+  const [addressFocused, setAddressFocused] = useState(false);
 
   const open = (row: Pick<Row, "port" | "host" | "cwd" | "workspaceId">, path?: string) =>
     ports.open(row, { path, workspaceId }).catch((error) => toast.error(errorMessage(error)));
@@ -94,11 +95,13 @@ function Pages({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.bar}>
+      <View style={[styles.bar, addressFocused && styles.barFocused]}>
         <Icon name="Globe" size={16} color={theme.colors.foregroundMuted} />
         <TextInput
           value={address}
           onChangeText={setAddress}
+          onFocus={() => setAddressFocused(true)}
+          onBlur={() => setAddressFocused(false)}
           onSubmitEditing={submit}
           placeholder="localhost:3000"
           placeholderTextColor={theme.colors.foregroundMuted}
@@ -173,7 +176,8 @@ function createStyles(theme: PluginTheme, compact: boolean) {
       borderColor: colors.border,
       backgroundColor: colors.surface1,
     },
-    input: { flex: 1, color: colors.foreground, fontSize: 14, paddingVertical: 9 },
+    barFocused: { borderColor: colors.foregroundMuted, backgroundColor: colors.surface2 },
+    input: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 14, paddingVertical: 9, outlineStyle: "solid" as const, outlineWidth: 0 },
     list: { gap: 2 },
     row: {
       flexDirection: "row" as const,
