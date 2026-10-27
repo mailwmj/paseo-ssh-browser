@@ -2,7 +2,7 @@ SSH Ports opens web servers running on a remote SSH host in Paseo's built-in bro
 
 ## How it works
 
-Install the plugin on the Paseo daemon of the computer you sit at, the one Paseo Desktop starts for you, not on the remote host. Open **SSH Ports** in the sidebar. Hosts Paseo Desktop is connected to over SSH appear automatically; if there are none, enter an SSH host there instead. The plugin connects with your own `ssh` client and keys, lists the remote host's listening ports that serve web pages, and opens one when you click it. Each port shows its `paseo.json` service name, or else the page title or the command that started it.
+Install the plugin on the Paseo daemon of the computer you sit at, the one Paseo Desktop starts for you, not on the remote host. Open **SSH Ports** in the sidebar. Hosts Paseo Desktop is connected to over SSH appear automatically; if there are none, enter an SSH host there instead. The plugin connects with your own `ssh` client and keys, lists the web servers on the remote host that belong to a Paseo workspace, a `paseo.json` service or a process running inside a workspace directory, and opens one when you click it. Each port shows its `paseo.json` service name, or else the page title or the command that started it.
 
 Clicking a port starts `ssh -L` and opens `http://localhost:<port>` in a browser tab of the remote workspace that runs the service, or else the one containing the server's working directory. The local port matches the remote one when it is free, so cookies and OAuth callbacks keep working. Long-press opens the system browser instead. Enter a port number to forward one the list does not show.
 

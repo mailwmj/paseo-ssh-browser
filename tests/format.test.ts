@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pickWorkspace, servicesByPort, shortCommand, sshHostsFromRegistry } from "../client/format";
+import {
+  pickWorkspace,
+  servicesByPort,
+  shortCommand,
+  sshHostsFromRegistry,
+  workspacePorts,
+} from "../client/format";
 
 const workspaces = [
   { id: "repo", directory: "/home/me/repo" },
@@ -87,4 +93,46 @@ test("names a port after the running paseo.json service that owns it", () => {
     3000: { name: "web", workspaceId: "ws-main" },
     3001: { name: "web", workspaceId: "ws-feature" },
   });
+});
+
+test("lists only ports that belong to a workspace", () => {
+  const port = (port: number, cwd: string | null, title: string | null = null, command: string | null = null) => ({
+    port,
+    host: "127.0.0.1",
+    pid: cwd ? port : null,
+    command,
+    cwd,
+    title,
+  });
+  // The listeners seen on a real host: system and desktop-tool web UIs next to two dev servers.
+  const ports = [
+    port(631, null, "Home - CUPS 2.4.16"),
+    port(36891, "/home/me", null, "chrome --remote-debugging-port=0"),
+    port(49374, "/home/me", "OpenCode"),
+    port(56469, "/home/me/.hermes", "Hermes Agent - Dashboard"),
+    port(59227, null),
+    port(3000, "/home/me/app", "My app"),
+    port(5173, "/home/me/app/.paseo/worktrees/feature/web", null, "node /x/node_modules/.bin/vite"),
+  ];
+  const entries = [
+    { id: "app", projectRootPath: "/home/me/app", scripts: [] },
+    {
+      id: "feature",
+      projectRootPath: "/home/me/app",
+      workspaceDirectory: "/home/me/app/.paseo/worktrees/feature",
+      scripts: [{ scriptName: "web", type: "service", port: 5173, lifecycle: "running" }],
+    },
+  ];
+  assert.deepEqual(workspacePorts(ports, entries), [
+    { port: 3000, host: "127.0.0.1", cwd: "/home/me/app", label: "My app", workspaceId: "app" },
+    {
+      port: 5173,
+      host: "127.0.0.1",
+      cwd: "/home/me/app/.paseo/worktrees/feature/web",
+      label: "web",
+      workspaceId: "feature",
+    },
+  ]);
+  // Without the workspace list nothing can be attributed, so nothing is hidden.
+  assert.equal(workspacePorts(ports, undefined).length, ports.length);
 });

@@ -21,10 +21,11 @@ import {
   type Forward,
 } from "../shared/ports";
 import {
-  describePort,
   pickWorkspace,
   servicesByPort,
   workspaceDirectories,
+  workspacePorts,
+  type PortRow,
   type WorkspaceEntry,
 } from "./format";
 import { readAppSshHosts } from "./web";
@@ -93,12 +94,7 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
   );
 }
 
-interface Row {
-  port: number;
-  host: string;
-  cwd: string | null;
-  label: string | null;
-  workspaceId: string | null;
+interface Row extends PortRow {
   forward: Forward | undefined;
 }
 
@@ -127,6 +123,7 @@ function TargetSection({
   const hosts = useHosts();
   const toast = useToast();
   const [opening, setOpening] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const scanned = useQuery({
     queryKey: ["scan", target],
@@ -153,16 +150,8 @@ function TargetSection({
     const own = (forwards.data?.forwards ?? []).filter((item) => item.target === target);
     const services = servicesByPort(workspaces.data ?? []);
     const byPort = new Map<number, Row>();
-    for (const port of scanned.data?.ports ?? []) {
-      const service = services.get(port.port);
-      byPort.set(port.port, {
-        port: port.port,
-        host: port.host,
-        cwd: port.cwd,
-        label: service?.name ?? describePort(port),
-        workspaceId: service?.workspaceId ?? null,
-        forward: own.find((item) => item.remotePort === port.port),
-      });
+    for (const row of workspacePorts(scanned.data?.ports ?? [], workspaces.data)) {
+      byPort.set(row.port, { ...row, forward: own.find((item) => item.remotePort === row.port) });
     }
     // Forwards opened by hand stay listed even when the scan does not see them as web pages.
     for (const item of own) {
@@ -221,14 +210,17 @@ function TargetSection({
         <Text style={styles.target} numberOfLines={1}>
           {title}
         </Text>
-        {scanned.isFetching ? (
+        {scanned.isPending || refreshing ? (
           <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
         ) : (
           <IconButton
             icon="RefreshCw"
             label={`Rescan ${target}`}
             color={theme.colors.foregroundMuted}
-            onPress={() => void scanned.refetch()}
+            onPress={() => {
+              setRefreshing(true);
+              void scanned.refetch().finally(() => setRefreshing(false));
+            }}
           />
         )}
         {onRemove ? (

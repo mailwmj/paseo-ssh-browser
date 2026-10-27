@@ -104,3 +104,29 @@ export function servicesByPort(
   }
   return services;
 }
+
+export interface PortRow {
+  port: number;
+  host: string;
+  cwd: string | null;
+  label: string | null;
+  workspaceId: string | null;
+}
+
+// Ports that belong to a workspace: a running paseo.json service, or a process working inside a
+// workspace directory. Other listeners (system services, desktop tools) are left out. Without the
+// host's workspace list nothing can be attributed, so every port is kept.
+export function workspacePorts(
+  ports: readonly DetectedPort[],
+  entries: readonly WorkspaceEntry[] | undefined,
+): PortRow[] {
+  const services = servicesByPort(entries ?? []);
+  const directories = workspaceDirectories(entries ?? []);
+  return ports.flatMap((port) => {
+    const service = services.get(port.port);
+    const workspaceId = service?.workspaceId ?? pickWorkspace(directories, port.cwd);
+    if (entries && !workspaceId) return [];
+    const label = service?.name ?? describePort(port);
+    return [{ port: port.port, host: port.host, cwd: port.cwd, label, workspaceId }];
+  });
+}
