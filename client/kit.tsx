@@ -26,24 +26,19 @@ export function IconButton({
   );
 }
 
-// Mid-tone fills that read with either theme's background color as the letter.
-const AVATAR_COLORS = ["#e0607e", "#3fbfa0", "#5b8def", "#e8a23b", "#9b6cf0", "#4fb3d9", "#d9734f"];
-
 export function Avatar({ text, theme }: { text: string; theme: PluginTheme }) {
-  let hash = 0;
-  for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) | 0;
   return (
     <View
       style={{
-        width: 28,
-        height: 28,
-        borderRadius: 8,
+        width: 32,
+        height: 32,
+        borderRadius: 9,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length],
+        backgroundColor: theme.colors.surface2,
       }}
     >
-      <Text style={{ color: theme.colors.surface0, fontSize: 14, fontWeight: "700" }}>
+      <Text style={{ color: theme.colors.accent, fontSize: 14, fontWeight: "700" }}>
         {(text.trim()[0] ?? "?").toUpperCase()}
       </Text>
     </View>

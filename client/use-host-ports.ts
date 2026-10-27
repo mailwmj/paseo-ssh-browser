@@ -128,15 +128,24 @@ export function useHostPorts({
 
   function refresh(): void {
     setRefreshing(true);
-    void scanned.refetch().finally(() => setRefreshing(false));
+    void Promise.all([scanned.refetch(), forwards.refetch()]).finally(() => setRefreshing(false));
   }
+
+  const forwardStatus: "ready" | "error" | "loading" = forwards.isSuccess
+    ? "ready"
+    : forwards.isError
+      ? "error"
+      : "loading";
 
   return {
     rows,
     workspacesById,
     loaded: scanned.isSuccess && (workspaces.isSuccess || !online),
+    scanComplete: scanned.isSuccess,
     loading: api !== null && (scanned.isPending || refreshing),
     error: scanned.error,
+    forwardStatus,
+    forwardError: forwards.error,
     opening,
     open,
     close,

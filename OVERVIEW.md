@@ -5,7 +5,7 @@ SSH Browser opens web servers running on a remote SSH host in Paseo's built-in b
 Install the plugin on two Paseo hosts: the one on the computer you sit at, which Paseo Desktop starts for you, and each remote SSH host. The copy on your computer runs `ssh` with your own keys and starts the tunnels. The copy on a remote host adds **SSH Browser** to the **+** menu of that host's workspaces.
 
 - **In a workspace**, choose **+ → SSH Browser**. It lists the web servers of that workspace, a running `paseo.json` service or a process working inside the workspace directory, and opens the page in a browser tab of the workspace. When the workspace has exactly one, it opens on its own. The address field takes a port or a localhost address with a path.
-- **In the sidebar**, **SSH Browser** shows every web page on each SSH host as a card, pages of workspaces first. Click a card to open it; long-press opens the system browser.
+- **In the sidebar**, **SSH Browser** shows every web page on each SSH host as a card, pages of workspaces first. Select a card to open it, or use its browser action to open it in the system browser. Forwarded cards show their local address and an action to stop forwarding.
 
 Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local port matches the remote one when it is free, so cookies and OAuth callbacks keep working. An unplug button stops a forward.
 
