@@ -161,6 +161,25 @@ export function attributePorts(
   });
 }
 
+// Group services by workspace identity, keeping unattributed services together at the end.
+export function groupPortsByWorkspace<T extends { workspaceId: string | null }>(rows: readonly T[]) {
+  const groups = new Map<string, T[]>();
+  const unassigned: T[] = [];
+  for (const row of rows) {
+    if (row.workspaceId === null) {
+      unassigned.push(row);
+    } else {
+      const items = groups.get(row.workspaceId) ?? [];
+      items.push(row);
+      groups.set(row.workspaceId, items);
+    }
+  }
+  return [
+    ...Array.from(groups, ([workspaceId, items]) => ({ workspaceId, rows: items })),
+    ...(unassigned.length ? [{ workspaceId: null, rows: unassigned }] : []),
+  ];
+}
+
 // What the address field accepts: "3000", "localhost:3000/path", or a full http://127.0.0.1 URL.
 export function parseAddress(text: string): { port: number; path: string } | null {
   const match = text

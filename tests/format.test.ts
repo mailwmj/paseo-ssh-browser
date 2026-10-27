@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   attributePorts,
+  groupPortsByWorkspace,
   parseAddress,
   parseHostRegistry,
   pickWorkspace,
@@ -146,6 +147,23 @@ test("attributes each port to the workspace that runs it, and keeps the rest", (
     rows.map(({ command }) => command),
     [null, null, null, "vite"],
   );
+});
+
+test("groups pages by workspace identity and places unassigned services last", () => {
+  const rows = [
+    { port: 631, workspaceId: null },
+    { port: 3000, workspaceId: "main" },
+    { port: 4000, workspaceId: "feature" },
+    { port: 5173, workspaceId: "main" },
+    { port: 8080, workspaceId: null },
+  ];
+  assert.deepEqual(groupPortsByWorkspace(rows), [
+    { workspaceId: "main", rows: [rows[1], rows[3]] },
+    { workspaceId: "feature", rows: [rows[2]] },
+    { workspaceId: null, rows: [rows[0], rows[4]] },
+  ]);
+  assert.deepEqual(groupPortsByWorkspace([]), []);
+  assert.deepEqual(groupPortsByWorkspace([rows[0]]), [{ workspaceId: null, rows: [rows[0]] }]);
 });
 
 test("labels a workspace by project, adding the workspace when it differs", () => {
