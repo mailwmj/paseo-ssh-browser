@@ -15,7 +15,7 @@ import { readHostRegistry } from "./web";
 
 type Navigation = PluginScreenProps["navigation"];
 type Styles = ReturnType<typeof createStyles>;
-const GAP = 14;
+const CARD_GAP = 12;
 
 export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
   const hosts = useHosts();
@@ -170,8 +170,8 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
   const ports = useHostPorts({ api, target, serverId, navigation });
   const [contentWidth, setContentWidth] = useState(0);
   const groups = groupPortsByWorkspace(ports.rows);
-  const columns = compact ? 1 : Math.max(1, Math.min(3, Math.floor((contentWidth + GAP) / (280 + GAP))));
-  const columnWidth = contentWidth ? (contentWidth - GAP * (columns - 1)) / columns : undefined;
+  const columns = compact ? 1 : Math.max(1, Math.min(3, Math.floor((contentWidth + CARD_GAP) / (280 + CARD_GAP))));
+  const cardWidth = contentWidth ? (contentWidth - CARD_GAP * (columns - 1)) / columns : undefined;
 
   return (
     <View style={styles.section}>
@@ -190,19 +190,21 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
           const workspace = workspaceId ? ports.workspacesById.get(workspaceId) : undefined;
           const heading = workspace ? workspaceLabel(workspace) : groups.length === 1 ? t("services") : t("unassignedServices");
           return (
-            <View key={workspaceId ?? "unassigned"} style={[styles.group, { width: columnWidth }, workspace && styles.workspaceGroup]}>
+            <View key={workspaceId ?? "unassigned"} style={styles.group}>
               <View style={styles.groupHeading}>
-                <Icon name="Folder" size={19} color={workspace ? theme.colors.accent : theme.colors.foregroundMuted} />
+                <Icon name="Folder" size={18} color={theme.colors.foregroundMuted} />
                 <Text accessibilityRole="header" style={styles.groupTitle} numberOfLines={1}>{heading}</Text>
                 <Text style={styles.groupCount}>{rows.length}</Text>
               </View>
               <View style={styles.cards}>
                 {rows.map((row) => (
-                  <PortCard key={row.port} row={row} opening={ports.opening === row.port}
-                    forwardStatus={ports.forwardStatus} styles={styles} theme={theme}
-                    workspaces={ports.canOpenWorkspace ? [...ports.workspacesById.values()] : []}
-                    onOpen={(options) => ports.open(row, options).catch((error) => toast.error(errorMessage(error)))}
-                    onClose={() => ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} />
+                  <View key={row.port} style={{ width: cardWidth }}>
+                    <PortCard row={row} opening={ports.opening === row.port}
+                      forwardStatus={ports.forwardStatus} styles={styles} theme={theme}
+                      workspaces={ports.canOpenWorkspace ? [...ports.workspacesById.values()] : []}
+                      onOpen={(options) => ports.open(row, options).catch((error) => toast.error(errorMessage(error)))}
+                      onClose={() => ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} />
+                  </View>
                 ))}
               </View>
             </View>
@@ -374,7 +376,7 @@ function createStyles(theme: PluginTheme, compact: boolean) {
   const { colors } = theme;
   return {
     screen: { flex: 1, backgroundColor: colors.surface0 },
-    content: { width: "100%" as const, alignSelf: "center" as const, padding: compact ? 16 : 24, gap: 28 },
+    content: { width: "100%" as const, maxWidth: 1280, alignSelf: "center" as const, padding: compact ? 16 : 36, gap: 32 },
     pageHeader: { flexDirection: compact ? "column" as const : "row" as const, alignItems: compact ? "stretch" as const : "center" as const, gap: 12 },
     titleRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, flexShrink: 1 },
     pageTitle: { color: colors.foreground, fontSize: compact ? 20 : 24, fontWeight: "700" as const },
@@ -392,14 +394,13 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     removeHost: { minHeight: 44, paddingHorizontal: 12, justifyContent: "center" as const },
     hostActionText: { color: colors.foregroundMuted, fontSize: 13 },
     section: { gap: 16 },
-    groups: { flexDirection: "row" as const, flexWrap: "wrap" as const, alignItems: "stretch" as const, gap: GAP },
-    group: { minWidth: 0, padding: compact ? 14 : 18, gap: 20, borderWidth: 1, borderTopWidth: 2, borderColor: colors.border, borderRadius: 9, backgroundColor: colors.surface0 },
-    workspaceGroup: { borderTopColor: colors.accent },
-    groupHeading: { minHeight: 26, flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
-    groupTitle: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 15, fontWeight: "600" as const },
-    groupCount: { color: colors.foregroundMuted, fontSize: 13, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.surface1, fontVariant: ["tabular-nums" as const] },
-    cards: { gap: 14 },
-    card: { minHeight: 146, borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface1, overflow: "hidden" as const },
+    groups: { gap: 34 },
+    group: { minWidth: 0, gap: 13 },
+    groupHeading: { minHeight: 20, flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
+    groupTitle: { flexShrink: 1, minWidth: 0, color: colors.foreground, fontSize: 14, fontWeight: "600" as const },
+    groupCount: { color: colors.foregroundMuted, fontSize: 12, fontVariant: ["tabular-nums" as const] },
+    cards: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: CARD_GAP },
+    card: { minHeight: 144, borderRadius: 8, backgroundColor: colors.surface1, overflow: "hidden" as const },
     cardMain: { flex: 1, minHeight: 144, padding: 16, justifyContent: "space-between" as const, gap: 24 },
     cardPressed: { backgroundColor: colors.surface2 },
     cardHead: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 12, paddingRight: 32 },
@@ -411,7 +412,7 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     statusText: { flexShrink: 1, color: colors.foregroundMuted, fontSize: 12 },
     statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.foregroundMuted },
     statusDotOn: { backgroundColor: colors.statusSuccess },
-    openAction: { minHeight: 34, flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+    openAction: { minHeight: 34, flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: colors.surface2 },
     openActionText: { color: colors.foreground, fontSize: 13 },
     cardMenu: { position: "absolute" as const, right: 8, top: 8, width: 36, height: 36, alignItems: "center" as const, justifyContent: "center" as const },
     menuAction: { minHeight: 44, flexDirection: "row" as const, alignItems: "center" as const, gap: 12 },
