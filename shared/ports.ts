@@ -66,3 +66,13 @@ export const closeRpc = defineRpc({
   input: z.object({ target: sshTarget, remotePort }),
   output: z.object({}),
 });
+
+// SSH hosts entered by hand, with the Paseo server each one runs, learned from scanning it. This is
+// how a host the app reaches some other way, such as the relay, is matched to its SSH address.
+export const targetsRpc = defineRpc({
+  name: "ports.targets",
+  input: z.object({}),
+  output: z.object({
+    targets: z.array(z.object({ target: sshTarget, serverId: z.string().nullable() })),
+  }),
+});

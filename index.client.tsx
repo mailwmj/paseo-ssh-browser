@@ -1,7 +1,6 @@
 import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
-import { closeRpc, forwardsRpc, openRpc, scanRpc } from "./shared/ports";
-import { publishLocalApi } from "./client/bridge";
+import { buildLocalApi, publishLocalApi, RPCS } from "./client/bridge";
 import { BrowserPanel } from "./client/browser-panel";
 import { messages } from "./client/messages";
 import { PortsScreen } from "./client/ports-screen";
@@ -44,13 +43,17 @@ export default function contribute(client: PluginClientContext) {
     .list()
     .then(({ self }) => {
       if (stopped || !readHostRegistry().local.includes(self.serverId)) return;
-      unpublish = publishLocalApi({
-        version: 1,
-        scan: (input) => client.rpc(scanRpc, input),
-        forwards: () => client.rpc(forwardsRpc, {}),
-        open: (input) => client.rpc(openRpc, input),
-        close: (input) => client.rpc(closeRpc, input),
-      });
+      unpublish = publishLocalApi(
+        buildLocalApi({
+          scan: (input) => client.rpc(RPCS.scan, input),
+          forwards: (input) => client.rpc(RPCS.forwards, input),
+          open: (input) => client.rpc(RPCS.open, input),
+          close: (input) => client.rpc(RPCS.close, input),
+          targets: (input) => client.rpc(RPCS.targets, input),
+          readSettings: (input) => client.rpc(RPCS.readSettings, input),
+          writeSettings: (input) => client.rpc(RPCS.writeSettings, input),
+        }),
+      );
     })
     .catch((error: unknown) => console.warn("[ssh-browser] Could not identify this host", error));
 

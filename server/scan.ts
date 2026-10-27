@@ -117,11 +117,31 @@ export interface ProbeResult {
   title: string | null;
 }
 
+const UNREACHABLE_RETRY_MS = 60_000;
+
 export class PortScanner {
   // Settled probe results by target, port, and pid. A restarted process gets a new pid and is probed again.
   private readonly probes = new Map<string, ProbeResult>();
+  // The Paseo server each target runs, from its last scan; null while unreachable.
+  private readonly serverIds = new Map<string, { serverId: string | null; at: number }>();
 
-  constructor(private readonly exec: RemoteExec) {}
+  constructor(
+    private readonly exec: RemoteExec,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  async serverIdOf(target: string): Promise<string | null> {
+    const known = this.serverIds.get(target);
+    if (known && (known.serverId !== null || this.now() - known.at < UNREACHABLE_RETRY_MS)) {
+      return known.serverId;
+    }
+    try {
+      return (await this.scan(target)).serverId;
+    } catch {
+      this.serverIds.set(target, { serverId: null, at: this.now() });
+      return null;
+    }
+  }
 
   async scan(target: string): Promise<{ serverId: string | null; ports: DetectedPort[] }> {
     const known = [...this.probes.keys()]
@@ -134,6 +154,7 @@ export class PortScanner {
       timeoutMs: 20_000,
     });
     const { serverId, lines } = parseScanOutput(output);
+    this.serverIds.set(target, { serverId, at: this.now() });
 
     const seen = new Set<string>();
     const ports = new Map<number, DetectedPort>();

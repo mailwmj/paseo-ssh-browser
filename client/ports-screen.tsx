@@ -1,17 +1,14 @@
 import type { PluginTheme } from "@getpaseo/plugin";
-import {
-  useHosts,
-  useSettings,
-  useTranslation,
-  type PluginScreenProps,
-} from "@getpaseo/plugin/client";
-import { Loading, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
+import { useHosts, useTranslation, type PluginScreenProps } from "@getpaseo/plugin/client";
+import { ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { sshTarget, targetsSettings } from "../shared/ports";
+import { sshTarget } from "../shared/ports";
 import { workspaceLabel, type WorkspaceEntry } from "./format";
 import { Avatar, errorMessage, IconButton } from "./kit";
 import { messages } from "./messages";
+import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { readHostRegistry } from "./web";
 
@@ -19,39 +16,50 @@ type Navigation = PluginScreenProps["navigation"];
 type Styles = ReturnType<typeof createStyles>;
 
 export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
-  const settings = useSettings(targetsSettings);
   const hosts = useHosts();
   const { t } = useTranslation(messages);
   // Re-read the app's saved hosts whenever its host list or connection states change.
   const registry = useMemo(() => readHostRegistry(), [hosts]);
   const styles = useMemo(() => createStyles(theme, layout.compact), [theme, layout.compact]);
   const api = useApi();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const saved = useQuery({
+    queryKey: ["targets"],
+    queryFn: () => (api as LocalApi).targets(),
+    enabled: api !== null,
+  });
+  const updateTargets = async (change: (targets: string[]) => string[]) => {
+    try {
+      await api?.updateTargets(change);
+      await queryClient.invalidateQueries({ queryKey: ["targets"] });
+      return true;
+    } catch (error) {
+      toast.error(errorMessage(error));
+      return false;
+    }
+  };
 
-  if (settings.status === "loading") return <Loading />;
-  if (settings.status !== "ready") {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.error}>{settings.error}</Text>
-      </View>
-    );
-  }
-  const { targets } = settings.values;
-  const save = (next: string[]) => settings.save({ targets: next }, settings.revision);
-
-  // SSH hosts Paseo is connected to need no setup. Hosts entered by hand cover the rest.
+  // SSH hosts Paseo is connected to need no setup. Hosts entered by hand cover the rest, such as
+  // a host Paseo reaches through the relay; scanning one tells which Paseo host it is.
   const connected = registry.ssh.flatMap(({ serverId, target }) => {
     const host = hosts.find((item) => item.serverId === serverId && item.status === "online");
-    return host ? [{ target, title: host.label, serverId }] : [];
+    return host ? [{ target, title: host.label, serverId, manual: false }] : [];
   });
-  const manual = targets
-    .filter((target) => !connected.some((item) => item.target === target))
-    .map((target) => ({ target, title: target, serverId: null }));
+  const manual = (saved.data?.targets ?? [])
+    .filter(({ target, serverId }) => !connected.some((item) => item.target === target || item.serverId === serverId))
+    .map(({ target, serverId }) => ({
+      target,
+      serverId,
+      title: hosts.find((item) => item.serverId === serverId)?.label ?? target,
+      manual: true,
+    }));
   const sections = [...connected, ...manual];
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {api === null ? <Text style={styles.muted}>{t("needLocal")}</Text> : null}
-      {sections.map(({ target, title, serverId }) => (
+      {sections.map(({ target, title, serverId, manual: removable }) => (
         <HostSection
           key={target}
           target={target}
@@ -60,14 +68,14 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
           styles={styles}
           theme={theme}
           navigation={navigation}
-          onRemove={serverId ? undefined : () => save(targets.filter((item) => item !== target))}
+          onRemove={removable ? () => void updateTargets((items) => items.filter((item) => item !== target)) : undefined}
         />
       ))}
-      {registry.ssh.length === 0 || sections.length === 0 ? (
+      {api !== null && (registry.ssh.length === 0 || sections.length === 0) ? (
         <AddHost
           styles={styles}
           theme={theme}
-          onAdd={(target) => (targets.includes(target) ? true : save([...targets, target]))}
+          onAdd={(target) => updateTargets((items) => (items.includes(target) ? items : [...items, target]))}
         />
       ) : null}
     </ScrollView>

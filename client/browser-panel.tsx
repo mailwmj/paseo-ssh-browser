@@ -6,12 +6,14 @@ import {
   type PluginWorkspacePanelProps,
 } from "@getpaseo/plugin/client";
 import { Icon, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { z } from "zod";
 import { parseAddress } from "./format";
 import { errorMessage, IconButton } from "./kit";
 import { messages } from "./messages";
+import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { readHostRegistry } from "./web";
 
@@ -26,8 +28,20 @@ export function BrowserPanel(props: PluginWorkspacePanelProps) {
   const registry = useMemo(() => readHostRegistry(), [hosts]);
   const styles = useMemo(() => createStyles(theme, layout.compact), [theme, layout.compact]);
   const api = useApi();
-  const target = registry.ssh.find((item) => item.serverId === host.id)?.target;
+  // A host Paseo reaches over SSH carries its address; one reached another way, such as the relay,
+  // needs the SSH host entered on the sidebar screen, matched here by its Paseo server.
+  const saved = useQuery({
+    queryKey: ["targets"],
+    queryFn: () => (api as LocalApi).targets(),
+    enabled: api !== null && !registry.ssh.some((item) => item.serverId === host.id),
+  });
+  const target =
+    registry.ssh.find((item) => item.serverId === host.id)?.target ??
+    saved.data?.targets.find((item) => item.serverId === host.id)?.target;
 
+  if (api && !target && saved.isPending && saved.fetchStatus !== "idle") {
+    return <View style={styles.screen} />;
+  }
   if (!target || !api) {
     return (
       <View style={[styles.screen, styles.center]}>

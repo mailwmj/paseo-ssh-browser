@@ -12,6 +12,7 @@ Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local p
 ## Setup
 
 - Hosts Paseo Desktop is connected to over SSH appear automatically. The host must accept non-interactive `ssh <host>` from your computer, which is already the case when Paseo connects to it over SSH.
+- A host Paseo reaches another way, such as the relay, works when your computer can still `ssh` to it, for example over Tailscale or the local network. Add its SSH address once on the sidebar screen; the plugin recognizes which Paseo host it is and its workspaces' **+** menu works too. A host your computer cannot reach over SSH at all is not supported.
 - The remote host must run Linux with `ss`. With `curl` installed there, non-web ports are filtered out and page titles are shown.
 - Opening pages inside Paseo needs Paseo Desktop. Other clients open the system browser.
 

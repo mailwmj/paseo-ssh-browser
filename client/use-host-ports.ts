@@ -1,8 +1,8 @@
 import { getPaseoClient, openExternalUrl, useHosts, useRpc, type PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { closeRpc, forwardsRpc, openRpc, scanRpc, type Forward } from "../shared/ports";
-import { useLocalApi, type LocalApi } from "./bridge";
+import type { Forward } from "../shared/ports";
+import { buildLocalApi, RPCS, useLocalApi, type LocalApi } from "./bridge";
 import { attributePorts, pickWorkspace, workspaceDirectories, type PortRow, type WorkspaceEntry } from "./format";
 import { readHostRegistry } from "./web";
 
@@ -14,13 +14,16 @@ export interface Row extends PortRow {
 // nothing identifies that copy, so the copy rendering the surface is assumed to be it.
 export function useApi(): LocalApi | null {
   const local = useLocalApi();
-  const scan = useRpc(scanRpc);
-  const forwards = useRpc(forwardsRpc);
-  const open = useRpc(openRpc);
-  const close = useRpc(closeRpc);
-  const own = useMemo<LocalApi>(
-    () => ({ version: 1, scan, forwards: () => forwards({}), open, close }),
-    [scan, forwards, open, close],
+  const scan = useRpc(RPCS.scan);
+  const forwards = useRpc(RPCS.forwards);
+  const open = useRpc(RPCS.open);
+  const close = useRpc(RPCS.close);
+  const targets = useRpc(RPCS.targets);
+  const readSettings = useRpc(RPCS.readSettings);
+  const writeSettings = useRpc(RPCS.writeSettings);
+  const own = useMemo(
+    () => buildLocalApi({ scan, forwards, open, close, targets, readSettings, writeSettings }),
+    [scan, forwards, open, close, targets, readSettings, writeSettings],
   );
   return local ?? (readHostRegistry().local.length === 0 ? own : null);
 }

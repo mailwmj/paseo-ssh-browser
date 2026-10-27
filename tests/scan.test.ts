@@ -88,3 +88,24 @@ test("a listener that timed out is probed again next time", async () => {
   await scanner.scan("devbox");
   assert.equal(calls[1], "sh -s --");
 });
+
+test("learns which Paseo server an SSH host runs, and retries an unreachable one after a minute", async () => {
+  let now = 0;
+  let reachable = false;
+  let calls = 0;
+  const exec: RemoteExec = async () => {
+    calls++;
+    if (!reachable) throw new Error("ssh: connect to host relayed-box port 22: Connection timed out");
+    return "S\tsrv_relayed\n";
+  };
+  const scanner = new PortScanner(exec, () => now);
+  assert.equal(await scanner.serverIdOf("relayed-box"), null);
+  reachable = true;
+  now = 30_000;
+  assert.equal(await scanner.serverIdOf("relayed-box"), null);
+  assert.equal(calls, 1);
+  now = 61_000;
+  assert.equal(await scanner.serverIdOf("relayed-box"), "srv_relayed");
+  assert.equal(await scanner.serverIdOf("relayed-box"), "srv_relayed");
+  assert.equal(calls, 2);
+});
