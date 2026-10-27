@@ -1,17 +1,22 @@
-SSH Ports opens web servers running on a remote SSH host in Paseo's built-in browser on your desktop. The page loads in your local browser through an SSH tunnel, so it is as fast as a local dev server, and hot reload, WebSockets, and DevTools work normally.
+SSH Browser opens web servers running on a remote SSH host in Paseo's built-in browser on your desktop. The page loads in your local browser through an SSH tunnel, so it is as fast as a local dev server, and hot reload, WebSockets, and DevTools work normally.
 
 ## How it works
 
-Install the plugin on the Paseo daemon of the computer you sit at, the one Paseo Desktop starts for you, not on the remote host. Open **SSH Ports** in the sidebar. Hosts Paseo Desktop is connected to over SSH appear automatically; if there are none, enter an SSH host there instead. The plugin connects with your own `ssh` client and keys, lists the web servers on the remote host that belong to a Paseo workspace, a `paseo.json` service or a process running inside a workspace directory, and opens one when you click it. Each port shows its `paseo.json` service name, or else the page title or the command that started it.
+Install the plugin on two Paseo hosts: the one on the computer you sit at, which Paseo Desktop starts for you, and each remote SSH host. The copy on your computer runs `ssh` with your own keys and starts the tunnels. The copy on a remote host adds **SSH Browser** to the **+** menu of that host's workspaces.
 
-Clicking a port starts `ssh -L` and opens `http://localhost:<port>` in a browser tab of the remote workspace that runs the service, or else the one containing the server's working directory. The local port matches the remote one when it is free, so cookies and OAuth callbacks keep working. Long-press opens the system browser instead. Enter a port number to forward one the list does not show.
+- **In a workspace**, choose **+ → SSH Browser**. It lists the web servers of that workspace, a running `paseo.json` service or a process working inside the workspace directory, and opens the page in a browser tab of the workspace. When the workspace has exactly one, it opens on its own. The address field takes a port or a localhost address with a path.
+- **In the sidebar**, **SSH Browser** shows every web page on each SSH host as a card, pages of workspaces first. Click a card to open it; long-press opens the system browser.
+
+Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local port matches the remote one when it is free, so cookies and OAuth callbacks keep working. An unplug button stops a forward.
 
 ## Setup
 
-- The host must accept non-interactive `ssh <host>` from this computer: keys or an agent, and a known host key. If Paseo already connects to the host over SSH, this is satisfied. The SSH host field accepts the same forms as `ssh`, including aliases from `~/.ssh/config` and `ssh://user@host:port`.
-- The remote host must run Linux with `ss`. With `curl` installed there, non-web ports are filtered out and page titles are shown; without it, every listening port except common system services is listed.
+- Hosts Paseo Desktop is connected to over SSH appear automatically. The host must accept non-interactive `ssh <host>` from your computer, which is already the case when Paseo connects to it over SSH.
+- The remote host must run Linux with `ss`. With `curl` installed there, non-web ports are filtered out and page titles are shown.
 - Opening pages inside Paseo needs Paseo Desktop. Other clients open the system browser.
 
 ## What it reads and runs
 
-While the screen is open, it runs one SSH command every 10 seconds that reads the remote listening sockets, the owning process's command line and working directory, and the Paseo server ID in `~/.paseo/server-id`. Each new listening process gets one `GET /` from the remote host itself to check that it serves HTML; one that has not answered yet is checked again on the next refresh. Forwards bind to localhost only and stop when you unplug them or when the plugin stops. To find your SSH hosts it reads the host list Paseo Desktop keeps in its own app storage and uses only each host's ID and SSH address. That storage is not a plugin API; if a Paseo update changes it, the screen asks for the SSH host instead. Hosts entered by hand are saved in this daemon's plugin settings.
+While a surface is open, the copy on your computer runs one SSH command every 10 seconds that reads the remote listening sockets, the owning process's command line and working directory, and the Paseo server ID in `~/.paseo/server-id`. Each new listening process gets one `GET /` from the remote host itself to check that it serves HTML; one that has not answered yet is checked again on the next refresh. Forwards bind to localhost only and stop when you unplug them or when the plugin stops.
+
+To find your SSH hosts and the host on your computer, the plugin reads the host list Paseo Desktop keeps in its own app storage and uses only each host's ID and address. The copies of the plugin reach each other through a shared value in the app. Neither is a plugin API; if a Paseo update changes them, the workspace menu entry reports that it is unavailable and the sidebar screen asks for an SSH host.

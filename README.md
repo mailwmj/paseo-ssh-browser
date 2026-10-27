@@ -1,14 +1,14 @@
-# SSH Ports for Paseo
+# SSH Browser for Paseo
 
 Open web servers running on a remote SSH host in Paseo's built-in browser on your desktop, through an SSH tunnel. Pages render in your local browser, so hot reload, WebSockets, and DevTools work as they do locally.
 
-Install it on the Paseo daemon of the computer you sit at, not on the remote host. In Paseo, open **Settings → Plugins** for your local host and install:
+Install it on two hosts in **Settings → Plugins**: the Paseo host on the computer you sit at, which starts the tunnels, and each remote SSH host, which adds **SSH Browser** to its workspaces' **+** menu.
 
 ```
-git:mailwmj/paseo-ssh-ports
+git:mailwmj/paseo-ssh-browser
 ```
 
-Then open **SSH Ports** in the sidebar. See [OVERVIEW.md](OVERVIEW.md) for requirements and what the plugin reads and runs.
+See [OVERVIEW.md](OVERVIEW.md) for requirements and what the plugin reads and runs.
 
 ## Development
 

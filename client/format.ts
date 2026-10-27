@@ -42,21 +42,28 @@ export interface AppSshHost {
   target: string;
 }
 
+export interface HostRegistry {
+  // Hosts the app reaches over SSH, with the destination to hand to `ssh`.
+  ssh: AppSshHost[];
+  // Hosts on this computer: the desktop's own daemon, by socket, pipe, or a loopback address.
+  local: string[];
+}
+
 // Paseo Desktop's saved hosts, as stored under "@paseo:daemon-registry": an array of host profiles,
-// each with a serverId and its connections. Only SSH connections are read; anything that does not
-// look as expected is skipped.
-export function sshHostsFromRegistry(raw: string | null): AppSshHost[] {
+// each with a serverId and its connections. Anything that does not look as expected is skipped.
+export function parseHostRegistry(raw: string | null): HostRegistry {
+  const registry: HostRegistry = { ssh: [], local: [] };
   let profiles: unknown;
   try {
     profiles = raw ? JSON.parse(raw) : [];
   } catch {
-    return [];
+    return registry;
   }
-  if (!Array.isArray(profiles)) return [];
-  const hosts: AppSshHost[] = [];
+  if (!Array.isArray(profiles)) return registry;
   for (const profile of profiles) {
     if (!isRecord(profile) || typeof profile.serverId !== "string") continue;
     const connections = Array.isArray(profile.connections) ? profile.connections.filter(isRecord) : [];
+    if (connections.some(isLocalConnection)) registry.local.push(profile.serverId);
     const sshConnections = connections.filter(
       (connection) => connection.type === "remoteSsh" && typeof connection.host === "string",
     );
@@ -66,9 +73,16 @@ export function sshHostsFromRegistry(raw: string | null): AppSshHost[] {
     if (!ssh) continue;
     const host = (ssh.host as string).trim();
     const target = typeof ssh.sshPort === "number" ? `ssh://${host}:${ssh.sshPort}` : host;
-    if (sshTarget.safeParse(target).success) hosts.push({ serverId: profile.serverId, target });
+    if (sshTarget.safeParse(target).success) registry.ssh.push({ serverId: profile.serverId, target });
   }
-  return hosts;
+  return registry;
+}
+
+function isLocalConnection(connection: Record<string, unknown>): boolean {
+  if (connection.type === "directSocket" || connection.type === "directPipe") return true;
+  if (connection.type !== "directTcp" || typeof connection.endpoint !== "string") return false;
+  const host = connection.endpoint.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,6 +92,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // The fields of a Paseo workspace descriptor this plugin reads.
 export interface WorkspaceEntry {
   id: string;
+  name: string;
+  title?: string | null;
+  projectDisplayName: string;
+  projectCustomName?: string | null;
   workspaceDirectory?: string;
   projectRootPath: string;
   scripts?: readonly { scriptName: string; type?: string; port: number | null; lifecycle: string }[];
@@ -88,6 +106,13 @@ export function workspaceDirectories(entries: readonly WorkspaceEntry[]) {
     id: entry.id,
     directory: entry.workspaceDirectory ?? entry.projectRootPath,
   }));
+}
+
+// "project · workspace", or just the project when the workspace carries the project's name.
+export function workspaceLabel(entry: WorkspaceEntry): string {
+  const project = entry.projectCustomName || entry.projectDisplayName;
+  const workspace = entry.title || entry.name;
+  return !workspace || workspace === project ? project : `${project} · ${workspace}`;
 }
 
 // Running paseo.json services by port: the name the user gave the server and the workspace that runs it.
@@ -110,23 +135,36 @@ export interface PortRow {
   host: string;
   cwd: string | null;
   label: string | null;
+  // The workspace that runs it: a running paseo.json service, else the workspace containing the
+  // process's working directory. Null for system services and other tools.
   workspaceId: string | null;
 }
 
-// Ports that belong to a workspace: a running paseo.json service, or a process working inside a
-// workspace directory. Other listeners (system services, desktop tools) are left out. Without the
-// host's workspace list nothing can be attributed, so every port is kept.
-export function workspacePorts(
+export function attributePorts(
   ports: readonly DetectedPort[],
-  entries: readonly WorkspaceEntry[] | undefined,
+  entries: readonly WorkspaceEntry[],
 ): PortRow[] {
-  const services = servicesByPort(entries ?? []);
-  const directories = workspaceDirectories(entries ?? []);
-  return ports.flatMap((port) => {
+  const services = servicesByPort(entries);
+  const directories = workspaceDirectories(entries);
+  return ports.map((port) => {
     const service = services.get(port.port);
-    const workspaceId = service?.workspaceId ?? pickWorkspace(directories, port.cwd);
-    if (entries && !workspaceId) return [];
-    const label = service?.name ?? describePort(port);
-    return [{ port: port.port, host: port.host, cwd: port.cwd, label, workspaceId }];
+    return {
+      port: port.port,
+      host: port.host,
+      cwd: port.cwd,
+      label: service?.name ?? describePort(port),
+      workspaceId: service?.workspaceId ?? pickWorkspace(directories, port.cwd),
+    };
   });
+}
+
+// What the address field accepts: "3000", "localhost:3000/path", or a full http://127.0.0.1 URL.
+export function parseAddress(text: string): { port: number; path: string } | null {
+  const match = text
+    .trim()
+    .match(/^(?:https?:\/\/)?(?:(?:localhost|127\.0\.0\.1|\[::1\])?:)?(\d{1,5})(\/.*)?$/i);
+  if (!match) return null;
+  const port = Number(match[1]);
+  if (port < 1 || port > 65535) return null;
+  return { port, path: match[2] ?? "/" };
 }

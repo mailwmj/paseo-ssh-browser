@@ -1,34 +1,19 @@
+import type { PluginTheme } from "@getpaseo/plugin";
 import {
-  getPaseoClient,
-  openExternalUrl,
   useHosts,
-  useRpc,
   useSettings,
+  useTranslation,
   type PluginScreenProps,
 } from "@getpaseo/plugin/client";
-import { Icon, Loading, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
-import type { PluginTheme } from "@getpaseo/plugin";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loading, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import {
-  closeRpc,
-  forwardsRpc,
-  openRpc,
-  scanRpc,
-  sshTarget,
-  targetsSettings,
-  type Forward,
-} from "../shared/ports";
-import {
-  pickWorkspace,
-  servicesByPort,
-  workspaceDirectories,
-  workspacePorts,
-  type PortRow,
-  type WorkspaceEntry,
-} from "./format";
-import { readAppSshHosts } from "./web";
+import { sshTarget, targetsSettings } from "../shared/ports";
+import { workspaceLabel, type WorkspaceEntry } from "./format";
+import { Avatar, errorMessage, IconButton } from "./kit";
+import { messages } from "./messages";
+import { useApi, useHostPorts, type Row } from "./use-host-ports";
+import { readHostRegistry } from "./web";
 
 type Navigation = PluginScreenProps["navigation"];
 type Styles = ReturnType<typeof createStyles>;
@@ -36,9 +21,11 @@ type Styles = ReturnType<typeof createStyles>;
 export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
   const settings = useSettings(targetsSettings);
   const hosts = useHosts();
+  const { t } = useTranslation(messages);
   // Re-read the app's saved hosts whenever its host list or connection states change.
-  const appSshHosts = useMemo(() => readAppSshHosts(), [hosts]);
+  const registry = useMemo(() => readHostRegistry(), [hosts]);
   const styles = useMemo(() => createStyles(theme, layout.compact), [theme, layout.compact]);
+  const api = useApi();
 
   if (settings.status === "loading") return <Loading />;
   if (settings.status !== "ready") {
@@ -52,16 +39,20 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
   const save = (next: string[]) => settings.save({ targets: next }, settings.revision);
 
   // SSH hosts Paseo is connected to need no setup. Hosts entered by hand cover the rest.
-  const connected = appSshHosts.flatMap(({ serverId, target }) => {
+  const connected = registry.ssh.flatMap(({ serverId, target }) => {
     const host = hosts.find((item) => item.serverId === serverId && item.status === "online");
     return host ? [{ target, title: host.label, serverId }] : [];
   });
-  const manual = targets.filter((target) => !connected.some((item) => item.target === target));
+  const manual = targets
+    .filter((target) => !connected.some((item) => item.target === target))
+    .map((target) => ({ target, title: target, serverId: null }));
+  const sections = [...connected, ...manual];
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {connected.map(({ target, title, serverId }) => (
-        <TargetSection
+      {api === null ? <Text style={styles.muted}>{t("needLocal")}</Text> : null}
+      {sections.map(({ target, title, serverId }) => (
+        <HostSection
           key={target}
           target={target}
           title={title}
@@ -69,22 +60,11 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
           styles={styles}
           theme={theme}
           navigation={navigation}
+          onRemove={serverId ? undefined : () => save(targets.filter((item) => item !== target))}
         />
       ))}
-      {manual.map((target) => (
-        <TargetSection
-          key={target}
-          target={target}
-          title={target}
-          serverId={null}
-          styles={styles}
-          theme={theme}
-          navigation={navigation}
-          onRemove={() => save(targets.filter((item) => item !== target))}
-        />
-      ))}
-      {appSshHosts.length === 0 || connected.length + manual.length === 0 ? (
-        <AddTarget
+      {registry.ssh.length === 0 || sections.length === 0 ? (
+        <AddHost
           styles={styles}
           theme={theme}
           onAdd={(target) => (targets.includes(target) ? true : save([...targets, target]))}
@@ -94,14 +74,10 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
   );
 }
 
-interface Row extends PortRow {
-  forward: Forward | undefined;
-}
-
-function TargetSection({
+function HostSection({
   target,
   title,
-  serverId: knownServerId,
+  serverId,
   styles,
   theme,
   navigation,
@@ -115,207 +91,118 @@ function TargetSection({
   navigation: Navigation;
   onRemove?: () => void;
 }) {
-  const scan = useRpc(scanRpc);
-  const listForwards = useRpc(forwardsRpc);
-  const openForward = useRpc(openRpc);
-  const closeForward = useRpc(closeRpc);
-  const queryClient = useQueryClient();
-  const hosts = useHosts();
+  const { t } = useTranslation(messages);
   const toast = useToast();
-  const [opening, setOpening] = useState<number | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const api = useApi();
+  const ports = useHostPorts({ api, target, serverId, navigation });
 
-  const scanned = useQuery({
-    queryKey: ["scan", target],
-    queryFn: () => scan({ target }),
-    refetchInterval: 10_000,
-    retry: false,
-  });
-  const forwards = useQuery({
-    queryKey: ["forwards"],
-    queryFn: () => listForwards({}),
-    refetchInterval: 5_000,
-  });
-  const serverId = knownServerId ?? scanned.data?.serverId ?? null;
-  const online = hosts.some((item) => item.serverId === serverId && item.status === "online");
-  const workspaces = useQuery({
-    queryKey: ["workspaces", serverId],
-    queryFn: async (): Promise<WorkspaceEntry[]> =>
-      (await getPaseoClient(serverId as string).workspaces.list()).entries,
-    enabled: online,
-    refetchInterval: 10_000,
-  });
-
-  const rows = useMemo(() => {
-    const own = (forwards.data?.forwards ?? []).filter((item) => item.target === target);
-    const services = servicesByPort(workspaces.data ?? []);
-    const byPort = new Map<number, Row>();
-    for (const row of workspacePorts(scanned.data?.ports ?? [], workspaces.data)) {
-      byPort.set(row.port, { ...row, forward: own.find((item) => item.remotePort === row.port) });
-    }
-    // Forwards opened by hand stay listed even when the scan does not see them as web pages.
-    for (const item of own) {
-      if (!byPort.has(item.remotePort)) {
-        byPort.set(item.remotePort, {
-          port: item.remotePort,
-          host: item.remoteHost,
-          cwd: null,
-          label: services.get(item.remotePort)?.name ?? null,
-          workspaceId: services.get(item.remotePort)?.workspaceId ?? null,
-          forward: item,
-        });
-      }
-    }
-    return [...byPort.values()].sort((a, b) => a.port - b.port);
-  }, [scanned.data, forwards.data, workspaces.data, target]);
-
-  async function show(url: string, row: Pick<Row, "cwd" | "workspaceId">, external: boolean) {
-    const openBrowser = navigation?.openBrowser;
-    if (!external && openBrowser && online && serverId) {
-      const directories = workspaceDirectories(workspaces.data ?? (await workspaces.refetch()).data ?? []);
-      const workspaceId = row.workspaceId ?? pickWorkspace(directories, row.cwd) ?? directories[0]?.id;
-      if (workspaceId) {
-        openBrowser({ url, workspaceId, serverId });
-        return;
-      }
-    }
-    await openExternalUrl(url);
-  }
-
-  async function open(row: Pick<Row, "port" | "host" | "cwd" | "workspaceId">, external = false) {
-    setOpening(row.port);
-    try {
-      const forward = await openForward({ target, remoteHost: row.host, remotePort: row.port });
-      await queryClient.invalidateQueries({ queryKey: ["forwards"] });
-      await show(forward.url, row, external);
-    } catch (error) {
-      toast.error(errorMessage(error));
-    } finally {
-      setOpening(null);
-    }
-  }
-
-  async function close(port: number) {
-    try {
-      await closeForward({ target, remotePort: port });
-      await queryClient.invalidateQueries({ queryKey: ["forwards"] });
-    } catch (error) {
-      toast.error(errorMessage(error));
-    }
-  }
+  // Pages of workspaces first; system services and other tools after them.
+  const rows = [...ports.rows].sort(
+    (a, b) => Number(a.workspaceId === null) - Number(b.workspaceId === null),
+  );
 
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.target} numberOfLines={1}>
+        <Text style={styles.host} numberOfLines={1}>
           {title}
         </Text>
-        {scanned.isPending || refreshing ? (
+        {ports.loading ? (
           <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
         ) : (
           <IconButton
             icon="RefreshCw"
-            label={`Rescan ${target}`}
+            label={t("rescan")}
             color={theme.colors.foregroundMuted}
-            onPress={() => {
-              setRefreshing(true);
-              void scanned.refetch().finally(() => setRefreshing(false));
-            }}
+            onPress={ports.refresh}
           />
         )}
         {onRemove ? (
+          <IconButton icon="X" label={target} color={theme.colors.foregroundMuted} onPress={onRemove} />
+        ) : null}
+      </View>
+      {ports.error ? <Text style={styles.error}>{errorMessage(ports.error)}</Text> : null}
+      {ports.loaded && rows.length === 0 ? <Text style={styles.muted}>{t("noPages")}</Text> : null}
+      <View style={styles.grid}>
+        {rows.map((row) => (
+          <PortCard
+            key={row.port}
+            row={row}
+            workspace={row.workspaceId ? ports.workspacesById.get(row.workspaceId) : undefined}
+            opening={ports.opening === row.port}
+            styles={styles}
+            theme={theme}
+            onOpen={(external) =>
+              ports.open(row, { external }).catch((error) => toast.error(errorMessage(error)))
+            }
+            onClose={() => ports.close(row.port).catch((error) => toast.error(errorMessage(error)))}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function PortCard({
+  row,
+  workspace,
+  opening,
+  styles,
+  theme,
+  onOpen,
+  onClose,
+}: {
+  row: Row;
+  workspace: WorkspaceEntry | undefined;
+  opening: boolean;
+  styles: Styles;
+  theme: PluginTheme;
+  onOpen: (external: boolean) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation(messages);
+  const title = row.label ?? `localhost:${row.port}`;
+  const address = `localhost:${row.forward?.localPort ?? row.port}`;
+  const subtitle = workspace ? workspaceLabel(workspace) : null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title} ${address}`}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      onPress={() => onOpen(false)}
+      onLongPress={() => onOpen(true)}
+    >
+      <View style={styles.cardHeader}>
+        <Avatar
+          text={workspace ? workspace.projectCustomName || workspace.projectDisplayName : title}
+          theme={theme}
+        />
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        {opening ? <ActivityIndicator size="small" color={theme.colors.accent} /> : null}
+        {row.forward && !opening ? (
           <IconButton
-            icon="X"
-            label={`Remove ${target}`}
+            icon="Unplug"
+            label={t("unplug", { port: row.port })}
             color={theme.colors.foregroundMuted}
-            onPress={onRemove}
+            onPress={onClose}
           />
         ) : null}
       </View>
-
-      {scanned.error ? <Text style={styles.error}>{errorMessage(scanned.error)}</Text> : null}
-
-      <View style={styles.card}>
-        {rows.map((row, index) => (
-          <View key={row.port} style={[styles.row, index > 0 && styles.rowDivider]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Open port ${row.port}`}
-              style={styles.rowMain}
-              onPress={() => void open(row)}
-              onLongPress={() => void open(row, true)}
-              disabled={opening !== null}
-            >
-              <Text style={styles.port}>{row.port}</Text>
-              <Text style={styles.label} numberOfLines={1}>
-                {row.label ?? ""}
-              </Text>
-              {opening === row.port ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-              ) : row.forward ? (
-                <Text style={styles.local}>localhost:{row.forward.localPort}</Text>
-              ) : null}
-            </Pressable>
-            {row.forward ? (
-              <IconButton
-                icon="Unplug"
-                label={`Stop forwarding port ${row.port}`}
-                color={theme.colors.foregroundMuted}
-                onPress={() => void close(row.port)}
-              />
-            ) : null}
-          </View>
-        ))}
-        <ManualPort
-          styles={styles}
-          theme={theme}
-          divider={rows.length > 0}
-          onSubmit={(port) => void open({ port, host: "127.0.0.1", cwd: null, workspaceId: null })}
-        />
-      </View>
-    </View>
-  );
-}
-
-function ManualPort({
-  styles,
-  theme,
-  divider,
-  onSubmit,
-}: {
-  styles: Styles;
-  theme: PluginTheme;
-  divider: boolean;
-  onSubmit: (port: number) => void;
-}) {
-  const [text, setText] = useState("");
-  const port = Number(text);
-  const valid = Number.isInteger(port) && port >= 1 && port <= 65535;
-  const submit = () => {
-    if (!valid) return;
-    onSubmit(port);
-    setText("");
-  };
-  return (
-    <View style={[styles.row, divider && styles.rowDivider]}>
-      <TextInput
-        value={text}
-        onChangeText={(value) => setText(value.replace(/\D/g, ""))}
-        onSubmitEditing={submit}
-        placeholder="Port"
-        placeholderTextColor={theme.colors.foregroundMuted}
-        keyboardType="number-pad"
-        style={styles.input}
-        accessibilityLabel="Forward a port by number"
-      />
-      {valid ? (
-        <IconButton icon="ArrowRight" label="Open port" color={theme.colors.accent} onPress={submit} />
+      {subtitle ? (
+        <Text style={styles.muted} numberOfLines={1}>
+          {subtitle}
+        </Text>
       ) : null}
-    </View>
+      <Text style={row.forward ? styles.forwarded : styles.muted} numberOfLines={1}>
+        {address}
+      </Text>
+    </Pressable>
   );
 }
 
-function AddTarget({
+function AddHost({
   styles,
   theme,
   onAdd,
@@ -324,108 +211,78 @@ function AddTarget({
   theme: PluginTheme;
   onAdd: (target: string) => Promise<boolean> | boolean;
 }) {
+  const { t } = useTranslation(messages);
   const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [invalid, setInvalid] = useState(false);
   const submit = async () => {
     const parsed = sshTarget.safeParse(text);
-    if (!parsed.success || !parsed.data) {
-      setError(parsed.success ? null : (parsed.error.issues[0]?.message ?? null));
+    if (!parsed.success) {
+      setInvalid(true);
       return;
     }
-    if (await onAdd(parsed.data)) {
+    if (parsed.data && (await onAdd(parsed.data))) {
       setText("");
-      setError(null);
+      setInvalid(false);
     }
   };
   return (
     <View style={styles.section}>
-      <View style={[styles.card, styles.row]}>
+      <View style={styles.field}>
         <TextInput
           value={text}
           onChangeText={setText}
           onSubmitEditing={() => void submit()}
-          placeholder="SSH host, e.g. user@devbox"
+          placeholder={t("addHost")}
           placeholderTextColor={theme.colors.foregroundMuted}
           autoCapitalize="none"
           autoCorrect={false}
           style={styles.input}
-          accessibilityLabel="Add an SSH host"
+          accessibilityLabel={t("addHost")}
         />
         {text.trim() ? (
-          <IconButton icon="Plus" label="Add SSH host" color={theme.colors.accent} onPress={() => void submit()} />
+          <IconButton icon="Plus" label={t("addHost")} color={theme.colors.accent} onPress={() => void submit()} />
         ) : null}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {invalid ? <Text style={styles.error}>{t("invalidHost")}</Text> : null}
     </View>
   );
-}
-
-function IconButton({
-  icon,
-  label,
-  color,
-  onPress,
-}: {
-  icon: string;
-  label: string;
-  color: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={8}
-      onPress={onPress}
-      style={{ padding: 6 }}
-    >
-      <Icon name={icon} size={16} color={color} />
-    </Pressable>
-  );
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function createStyles(theme: PluginTheme, compact: boolean) {
   const { colors } = theme;
   return {
     screen: { flex: 1, backgroundColor: colors.surface0 },
-    content: { padding: compact ? 16 : 24, gap: 24, maxWidth: 720, width: "100%" as const },
-    section: { gap: 8 },
+    content: { padding: compact ? 16 : 24, gap: 28 },
+    section: { gap: 12 },
     sectionHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4 },
-    target: { flex: 1, color: colors.foreground, fontSize: 15, fontWeight: "600" as const },
+    host: { flex: 1, color: colors.foreground, fontSize: 15, fontWeight: "600" as const },
+    grid: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 12 },
     card: {
+      flexGrow: 1,
+      flexBasis: compact ? ("100%" as const) : 280,
+      maxWidth: compact ? ("100%" as const) : 420,
+      gap: 6,
+      padding: 14,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 10,
       backgroundColor: colors.surface1,
-      overflow: "hidden" as const,
     },
-    row: {
+    cardPressed: { backgroundColor: colors.surface2 },
+    cardHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, minHeight: 28 },
+    cardTitle: { flex: 1, color: colors.foreground, fontSize: 15, fontWeight: "500" as const },
+    muted: { color: colors.foregroundMuted, fontSize: 13 },
+    forwarded: { color: colors.statusSuccess, fontSize: 13 },
+    field: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
-      paddingHorizontal: 12,
-      minHeight: 44,
       gap: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface1,
     },
-    rowDivider: { borderTopWidth: 1, borderTopColor: colors.border },
-    rowMain: {
-      flex: 1,
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      gap: 12,
-      paddingVertical: 10,
-    },
-    port: {
-      color: colors.foreground,
-      fontSize: 14,
-      fontVariant: ["tabular-nums" as const],
-      minWidth: 48,
-    },
-    label: { flex: 1, color: colors.foregroundMuted, fontSize: 13 },
-    local: { color: colors.statusSuccess, fontSize: 12 },
     input: { flex: 1, color: colors.foreground, fontSize: 14, paddingVertical: 10 },
     error: { color: colors.statusDanger, fontSize: 13 },
   };

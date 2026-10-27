@@ -1,6 +1,6 @@
 {
-  "id": "ssh-ports",
-  "name": "SSH Ports",
+  "id": "ssh-browser",
+  "name": "SSH Browser",
   "media": [],
   "requirements": {
     "paseo": ">=0.13.0"

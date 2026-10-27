@@ -1,16 +1,16 @@
 import { Platform } from "react-native";
-import { sshHostsFromRegistry, type AppSshHost } from "./format";
+import { parseHostRegistry, type HostRegistry } from "./format";
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
 declare const localStorage: { getItem(key: string): string | null };
 
 // Paseo Desktop keeps its saved hosts in the app's web storage. This is not a plugin API, so when
-// it changes or is missing the screen falls back to SSH hosts entered by hand.
-export function readAppSshHosts(): AppSshHost[] {
-  if (Platform.OS !== "web") return [];
+// it changes or is missing, nothing is found and the screen asks for an SSH host instead.
+export function readHostRegistry(): HostRegistry {
+  if (Platform.OS !== "web") return { ssh: [], local: [] };
   try {
-    return sshHostsFromRegistry(localStorage.getItem("@paseo:daemon-registry"));
+    return parseHostRegistry(localStorage.getItem("@paseo:daemon-registry"));
   } catch {
-    return [];
+    return { ssh: [], local: [] };
   }
 }
