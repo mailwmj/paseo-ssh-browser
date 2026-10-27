@@ -1,6 +1,5 @@
-import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/ui";
-import { Pressable, Text, View } from "react-native";
+import { Pressable } from "react-native";
 
 export function IconButton({
   icon,
@@ -23,25 +22,6 @@ export function IconButton({
     >
       <Icon name={icon} size={16} color={color} />
     </Pressable>
-  );
-}
-
-export function Avatar({ text, theme }: { text: string; theme: PluginTheme }) {
-  return (
-    <View
-      style={{
-        width: 32,
-        height: 32,
-        borderRadius: 9,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: theme.colors.surface2,
-      }}
-    >
-      <Text style={{ color: theme.colors.accent, fontSize: 14, fontWeight: "700" }}>
-        {(text.trim()[0] ?? "?").toUpperCase()}
-      </Text>
-    </View>
   );
 }
 

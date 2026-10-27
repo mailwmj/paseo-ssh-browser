@@ -135,6 +135,8 @@ export interface PortRow {
   host: string;
   cwd: string | null;
   label: string | null;
+  // What started it, shortened: "vite --port 5173".
+  command: string | null;
   // The workspace that runs it: a running paseo.json service, else the workspace containing the
   // process's working directory. Null for system services and other tools.
   workspaceId: string | null;
@@ -153,6 +155,7 @@ export function attributePorts(
       host: port.host,
       cwd: port.cwd,
       label: service?.name ?? describePort(port),
+      command: shortCommand(port.command),
       workspaceId: service?.workspaceId ?? pickWorkspace(directories, port.cwd),
     };
   });

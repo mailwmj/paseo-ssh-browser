@@ -141,6 +141,11 @@ test("attributes each port to the workspace that runs it, and keeps the rest", (
       { port: 5173, label: "web", workspaceId: "feature" },
     ],
   );
+  // A card names the process behind a port, shortened the way the label is.
+  assert.deepEqual(
+    rows.map(({ command }) => command),
+    [null, null, null, "vite"],
+  );
 });
 
 test("labels a workspace by project, adding the workspace when it differs", () => {

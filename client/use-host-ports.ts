@@ -81,6 +81,7 @@ export function useHostPorts({
           host: item.remoteHost,
           cwd: null,
           label: null,
+          command: null,
           workspaceId: null,
           forward: item,
         });
