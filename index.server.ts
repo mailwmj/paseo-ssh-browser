@@ -6,12 +6,13 @@ import { recentFiles } from "./server/recent-files";
 import { PortScanner } from "./server/scan";
 import { stopService } from "./server/stop-service";
 import { sshExec } from "./server/ssh";
+import { remotePluginStatus } from "./server/plugin-status";
 import { TransferManager } from "./server/transfer";
 import { TunnelManager } from "./server/tunnels";
 import { OpenRequests } from "./server/open-requests";
 import { openRemoteUrlTool } from "./server/open-tool";
 import { authorizeOpenRpc, disconnectOpenRpc, finishOpenRpc, pollOpenRpc } from "./shared/remote-url";
-import { closeRpc, forwardsRpc, openRpc, scanRpc, stopServiceRpc, targetsRpc, targetsSettings, recentSettings } from "./shared/ports";
+import { closeRpc, forwardsRpc, openRpc, scanRpc, stopServiceRpc, targetsRpc, targetsSettings, recentSettings, remotePluginStatusRpc } from "./shared/ports";
 import {
   cancelTransferRpc, receiveFolderRpc, receiveRpc, receiveSettings, recentFilesRpc, sendRpc, transfersRpc,
 } from "./shared/transfer";
@@ -45,6 +46,7 @@ export default function contribute(server: PluginServerContext) {
 
   server.handle(stopServiceRpc, (input) => stopService(sshExec, input));
   server.handle(scanRpc, ({ target, refresh }) => scanner.scan(target, refresh));
+  server.handle(remotePluginStatusRpc, ({ target, serverId }) => remotePluginStatus(sshExec, target, serverId));
   server.handle(targetsRpc, async () => {
     const state = await settings.read();
     const targets = state.status === "ready" ? state.values.targets : [];

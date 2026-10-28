@@ -71,6 +71,13 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
   const selected = sections.find((item) => item.target === selectedTarget) ?? sections[0];
   const noHosts = api !== null && saved.isSuccess && sections.length === 0;
   const showAddHost = api !== null && (addingHost || noHosts);
+  const remotePlugin = useQuery({
+    queryKey: ["remote-plugin-status", selected?.target, selected?.serverId],
+    queryFn: () => api!.remotePluginStatus({ target: selected!.target, serverId: selected!.serverId! }),
+    enabled: api !== null && !!selected?.serverId && hosts.some((host) => host.serverId === selected.serverId && host.status === "online"),
+    refetchInterval: 30_000,
+    retry: false,
+  });
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -158,7 +165,8 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
       ) : null}
       {api && selected ? (
         <>
-          <InstallHint theme={theme} side="remote" />
+          {remotePlugin.isSuccess && remotePlugin.data.status !== "running" ?
+            <InstallHint theme={theme} side="remote" unavailable={remotePlugin.data.status === "unavailable"} /> : null}
           <HostSection key={selected.target} target={selected.target} serverId={selected.serverId}
             styles={styles} theme={theme} compact={layout.compact} navigation={navigation} />
         </>

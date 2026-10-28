@@ -10,6 +10,12 @@ export const sshTarget = z
 
 export const remotePort = z.number().int().min(1).max(65535);
 
+export const remotePluginStatusRpc = defineRpc({
+  name: "ports.remote-plugin-status",
+  input: z.object({ target: sshTarget, serverId: z.string().min(1) }),
+  output: z.object({ status: z.enum(["running", "missing", "unavailable"]) }),
+});
+
 // The address the remote service listens on, as the remote host reaches it: 127.0.0.1, ::1, or a specific IP.
 export const remoteHost = z.string().regex(/^[0-9A-Fa-f.:]+$/, "Not an IP address");
 

@@ -9,6 +9,7 @@ import {
   targetsRpc,
   targetsSettings,
   recentSettings,
+  remotePluginStatusRpc,
   type Forward,
 } from "../shared/ports";
 import {
@@ -21,7 +22,7 @@ import {
   type TransferJob,
 } from "../shared/transfer";
 
-const BRIDGE_VERSION = 7;
+const BRIDGE_VERSION = 8;
 
 // Tunnels have to start on the computer running the app, so every surface, whichever host's copy
 // of the plugin renders it, calls the copy installed on this computer's own Paseo host. Paseo runs
@@ -30,6 +31,7 @@ const BRIDGE_VERSION = 7;
 export interface LocalApi {
   version: typeof BRIDGE_VERSION;
   scan(input: RpcInput<typeof scanRpc>): Promise<RpcOutput<typeof scanRpc>>;
+  remotePluginStatus(input: RpcInput<typeof remotePluginStatusRpc>): Promise<RpcOutput<typeof remotePluginStatusRpc>>;
   stopService(input: RpcInput<typeof stopServiceRpc>): Promise<RpcOutput<typeof stopServiceRpc>>;
   forwards(): Promise<RpcOutput<typeof forwardsRpc>>;
   open(input: RpcInput<typeof openRpc>): Promise<Forward>;
@@ -55,6 +57,7 @@ const receiveFolderSetting = settingsRpc(receiveSettings.id);
 
 export interface RpcCalls {
   scan: (input: RpcInput<typeof scanRpc>) => Promise<RpcOutput<typeof scanRpc>>;
+  remotePluginStatus: (input: RpcInput<typeof remotePluginStatusRpc>) => Promise<RpcOutput<typeof remotePluginStatusRpc>>;
   stopService: (input: RpcInput<typeof stopServiceRpc>) => Promise<RpcOutput<typeof stopServiceRpc>>;
   forwards: (input: RpcInput<typeof forwardsRpc>) => Promise<RpcOutput<typeof forwardsRpc>>;
   open: (input: RpcInput<typeof openRpc>) => Promise<Forward>;
@@ -77,6 +80,7 @@ export interface RpcCalls {
 
 export const RPCS = {
   scan: scanRpc,
+  remotePluginStatus: remotePluginStatusRpc,
   stopService: stopServiceRpc,
   forwards: forwardsRpc,
   open: openRpc,
@@ -99,6 +103,7 @@ export function buildLocalApi(calls: RpcCalls): LocalApi {
   return {
     version: BRIDGE_VERSION,
     scan: calls.scan,
+    remotePluginStatus: calls.remotePluginStatus,
     stopService: calls.stopService,
     forwards: () => calls.forwards({}),
     open: calls.open,

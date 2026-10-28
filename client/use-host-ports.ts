@@ -19,6 +19,7 @@ export interface Row extends PortRow {
 export function useApi(): LocalApi | null {
   const local = useLocalApi();
   const scan = useRpc(RPCS.scan);
+  const remotePluginStatus = useRpc(RPCS.remotePluginStatus);
   const stopService = useRpc(RPCS.stopService);
   const forwards = useRpc(RPCS.forwards);
   const open = useRpc(RPCS.open);
@@ -37,10 +38,10 @@ export function useApi(): LocalApi | null {
   const writeFolder = useRpc(RPCS.writeReceiveFolder);
   const own = useMemo(
     () => buildLocalApi({
-      scan, stopService, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent,
+      scan, remotePluginStatus, stopService, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent,
       transfer: { send, receive, list, cancel, folder, readFolder, writeFolder },
     }),
-    [scan, stopService, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent, send, receive, list, cancel, folder, readFolder, writeFolder],
+    [scan, remotePluginStatus, stopService, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent, send, receive, list, cancel, folder, readFolder, writeFolder],
   );
   return local ?? (readHostRegistry().local.length === 0 ? own : null);
 }
