@@ -166,7 +166,7 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
       {api && selected ? (
         <>
           {remotePlugin.isSuccess && remotePlugin.data.status !== "running" ?
-            <InstallHint theme={theme} side="remote" unavailable={remotePlugin.data.status === "unavailable"} /> : null}
+            <InstallHint theme={theme} side="remote" host={selected.title} unavailable={remotePlugin.data.status === "unavailable"} /> : null}
           <HostSection key={selected.target} target={selected.target} serverId={selected.serverId}
             styles={styles} theme={theme} compact={layout.compact} navigation={navigation} />
         </>
