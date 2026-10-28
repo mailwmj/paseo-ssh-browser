@@ -1,3 +1,4 @@
+import { visibilitySettings } from "./shared/visibility";
 import os from "node:os";
 import path from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
@@ -18,6 +19,7 @@ import {
 export default function contribute(server: PluginServerContext) {
   const settings = server.registerSettings(targetsSettings);
   server.registerSettings(recentSettings);
+  server.registerSettings(visibilitySettings);
   const receive = server.registerSettings(receiveSettings);
   const scanner = new PortScanner(sshExec);
   const tunnels = new TunnelManager();

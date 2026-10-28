@@ -10,7 +10,7 @@ In a remote workspace, choose **+ → SSH Browser** to open a detected service o
 
 Agents can use `open_remote_url` to establish a tunnel, then use Paseo browser tools to open and inspect its returned local URL. Keep only one Desktop browser host connected to the remote daemon for this workflow. The tool does not open or verify the page itself.
 
-Open **File transfer** from the workspace header, **+** menu, Explorer or Command Center. Send files to a host folder or download recently changed files and explicit paths. Downloads default to `~/Downloads/Paseo/<workspace name>/`. Existing files are not overwritten; transfers can be cancelled or retried. Folder transfers and resuming are not supported. Local file selection and the built-in browser require Paseo Desktop.
+Open **File transfer** from the workspace header, **+** menu, Explorer or Command Center. Hide these entries per host using **Settings → Plugins → SSH Browser**; ongoing transfers continue. Send files to a host folder or download recently changed files and explicit paths. Downloads default to `~/Downloads/Paseo/<workspace name>/`. Existing files are not overwritten; transfers can be cancelled or retried. Folder transfers and resuming are not supported. Local file selection and the built-in browser require Paseo Desktop.
 
 ## Data access and limits
 
