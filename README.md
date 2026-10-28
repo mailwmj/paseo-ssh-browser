@@ -1,45 +1,69 @@
 # SSH Browser for Paseo
 
-Open web servers running on a remote SSH host in Paseo's built-in browser on your desktop, through an SSH tunnel. Pages render in your local browser, so hot reload, WebSockets, and DevTools work as they do locally.
+Preview web apps running on an SSH host in Paseo Desktop, and move files between that host and your computer. SSH Browser creates local SSH forwards for remote services, so you can use the browser, hot reload and DevTools while your code runs remotely.
 
-Install it on two hosts in **Settings → Plugins**: the Paseo host on the computer you sit at, which starts the tunnels, and each remote SSH host, which adds **SSH Browser** to its workspaces' **+** menu.
+## Requirements
 
-```
+- Paseo Desktop and both daemons: **0.14.0-beta.1 or later**. Install the same plugin version on your computer's Paseo host and on each remote host.
+- The remote host must run Linux with `ss`. Install `curl` there to identify web services and display page titles.
+- Your computer must be able to connect to the remote host with `ssh <host>` without an interactive prompt. Hosts connected through a relay also work if they are reachable by SSH.
+- Opening pages inside Paseo and choosing local files for transfer require Paseo Desktop.
+
+## Install
+
+Enable plugins in Paseo's **Settings → Plugins**, then install this Git source on both your computer's Paseo host and each remote host:
+
+```text
 git:mailwmj/paseo-ssh-browser
 ```
 
-See [OVERVIEW.md](OVERVIEW.md) for requirements and what the plugin reads and runs.
+Alternatively, run the following against each daemon using the Paseo CLI:
 
-## File transfer
+```sh
+paseo plugin add git:mailwmj/paseo-ssh-browser
+```
 
-Send files from your computer to the host a workspace runs on, and receive files the agent wrote, from the icon in the workspace header, **⌘K → File transfer**, or **+ → File transfer**. Nothing goes through the agent, so its context is untouched. See [docs/file-transfer.md](docs/file-transfer.md).
+After updating, reload both copies. Existing agent sessions receive the preview tool when they next reopen, before their next idle prompt. Plugins run as trusted code on their hosts; review the source before installing.
 
-## Agent previews (Paseo 0.14 beta)
+## Preview a remote app
 
-Use Paseo **0.14.0-beta.1 or later on both the daemon and Desktop**, and install the same SSH Browser version on the desktop's own daemon and the remote daemon. Reload both copies after an update. An existing agent receives `open_remote_url` when its session next opens, before its next idle prompt.
+1. Start your web server in a remote workspace.
+2. Choose **+ → SSH Browser** in the workspace. Select a detected page, or enter a port or localhost URL, including a path if needed. A single detected workspace page opens automatically.
+3. Use the SSH Browser sidebar to see services across hosts, open a page in the system browser, reconnect a forward, or stop forwarding.
 
-The agent calls `open_remote_url({"url":"http://localhost:3000/dashboard?tab=home#details"})` after starting the remote development server. The desktop silently establishes an SSH forward. The tool returns `localUrl`, the actual `localPort`, `workspaceId`, `serverId`, and `status: "tunnel_ready"`. The agent must call `browser_new_tab` with `localUrl`, then inspect the returned browser ID with `browser_snapshot` or `browser_wait`. The tab opens in the background; the tool itself does not open or verify the page.
+SSH hosts connected in Paseo Desktop appear automatically. For a host connected another way, add its SSH address in the SSH Browser sidebar. Expand **Other listening ports** to open a service that was not identified as a web page.
 
-Use this flow with only one Paseo Desktop browser host connected to the remote daemon. `browser_new_tab` selects the most recently connected browser host, which must be the desktop where the tunnel was created. Never pass the original remote localhost URL to it.
+The plugin tries to use the same local port as the remote service; if it is occupied, it chooses another. HTTPS remains HTTPS: the certificate must be trusted and valid for `127.0.0.1`, the local address used for previews.
 
-HTTP and HTTPS loopback URLs (`localhost`, `127.0.0.1`, `[::1]`) are supported, including paths, queries, and fragments. HTTPS stays HTTPS and uses the browser's normal certificate checks. `localhost` on the remote host is forwarded to `127.0.0.1`; use `[::1]` for an IPv6-only service. URLs containing credentials and non-loopback destinations are rejected.
+### Let an agent preview
 
-The workspace panel's address field also accepts HTTP and HTTPS loopback URLs. Both manual and agent previews open the forwarded address at `127.0.0.1`, so an HTTPS certificate must be trusted by the desktop browser and valid for that address; a certificate valid only for `localhost` can show a certificate error.
+An agent can call `open_remote_url` with a remote loopback HTTP or HTTPS URL, then open the returned `localUrl` with `browser_new_tab` and inspect the tab with Paseo's browser tools. The tool creates the tunnel; it does not itself open or verify the page. Use only one connected Desktop browser host for this workflow, so the browser tab opens on the computer that created the tunnel. If no eligible desktop or multiple eligible desktops are connected, the request fails. An agent may need to be asked to preview the page; printed URLs are not opened automatically.
 
-The tool selects the single connected Desktop with a matching SSH destination and a compatible local plugin bridge. No eligible desktop, multiple eligible desktops/windows, a mismatched destination, SSH failure, cancellation, and timeout return errors. With multiple eligible desktops, keep only the intended one connected to the remote host. The plugin does not infer which computer sent the prompt. Requests expire after 60 seconds; pending navigation is discarded after cancellation, disconnection, or plugin cleanup. A tunnel already started can remain available for other previews; request cleanup does not close shared tunnels.
+## Transfer files
 
-Agent instructions for remote web development:
+Open **File transfer** from the workspace header, **+** menu, Explorer, or Command Center.
 
-> After starting or updating a remote web app for preview, proactively call `open_remote_url` with the desired full URL. Printing a URL does not open it. Then call `browser_new_tab` with the returned local URL and verify the page using its browser ID. Report tunnel or browser errors; do not fall back to opening the same local port directly.
+- **Send to host:** choose the destination folder, add files from your computer, and select **Send**. The destination defaults to the workspace folder and is remembered for that workspace.
+- **Download to this computer:** select a recently changed workspace file, or enter an explicit remote path beginning with `/`, `~/`, `./`, or `../` and press Enter. Search filters the recent list.
 
-The instruction is also included in the tool description. Registration and instructions alone do not prove that a model will call it: verify a normal development prompt on the installed Desktop before treating the workflow as accepted. The plugin does not watch chat output or automatically open every printed URL.
+Downloads are saved under `~/Downloads/Paseo/<workspace name>/` by default; change the receive folder in the panel. Transfers show progress and can be cancelled or retried. Existing files are not overwritten: a numbered suffix is added. Folders, drag and drop, and resuming transfers are not supported.
+
+## Privacy and limitations
+
+The local plugin runs SSH commands using your existing SSH configuration and credentials. While a plugin surface is open, it scans remote listening ports and process information every 10 seconds. It probes listeners with HTTP and, if necessary, HTTPS to identify pages; the HTTPS probe does not verify certificates. Forwards listen on local loopback and stop when disconnected or when the plugin stops. Transfers stream through SSH and do not go through the agent.
+
+Recent preview addresses are stored in local Paseo plugin settings and can include sensitive query parameters; clear them from the workspace panel when needed. The plugin uses some Paseo Desktop internals to find hosts and communicate between plugin copies, so a future Paseo update may break these features. See [OVERVIEW.md](OVERVIEW.md) for more detail.
 
 ## Development
 
-```bash
+```sh
 npm install
 npm run typecheck
 npm test
 ```
 
-`npm test` includes an end-to-end test through the real `ssh` binary that runs when `ssh localhost` works without a prompt.
+The test suite includes an SSH integration test when `ssh localhost` works without a prompt.
+
+## License
+
+[MIT](LICENSE)
