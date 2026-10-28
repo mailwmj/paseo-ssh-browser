@@ -1,7 +1,11 @@
 {
   "id": "ssh-browser",
   "name": "SSH Browser",
-  "media": [],
+  "media": [
+    "assets/web-services.png",
+    "assets/download-files.png",
+    "assets/send-files.png"
+  ],
   "requirements": {
     "paseo": ">=0.14.0-beta.1"
   },

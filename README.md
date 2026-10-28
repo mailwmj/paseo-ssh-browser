@@ -2,6 +2,8 @@
 
 Preview web apps running on an SSH host in Paseo Desktop, and move files between that host and your computer. SSH Browser creates local SSH forwards for remote services, so you can use the browser, hot reload and DevTools while your code runs remotely.
 
+![SSH Browser showing remote web services](assets/web-services.png)
+
 ## Requirements
 
 - Paseo Desktop and both daemons: **0.14.0-beta.1 or later**. Install the same plugin version on your computer's Paseo host and on each remote host.
@@ -47,6 +49,10 @@ Open **File transfer** from the workspace header, **+** menu, Explorer, or Comma
 - **Download to this computer:** select a recently changed workspace file, or enter an explicit remote path beginning with `/`, `~/`, `./`, or `../` and press Enter. Search filters the recent list.
 
 Downloads are saved under `~/Downloads/Paseo/<workspace name>/` by default; change the receive folder in the panel. Transfers show progress and can be cancelled or retried. Existing files are not overwritten: a numbered suffix is added. Folders, drag and drop, and resuming transfers are not supported.
+
+![Download files from a workspace](assets/download-files.png)
+
+![Send files to a host](assets/send-files.png)
 
 ## Privacy and limitations
 
