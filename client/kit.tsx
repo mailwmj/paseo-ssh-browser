@@ -7,12 +7,14 @@ export function IconButton({
   color,
   onPress,
   disabled,
+  size = 36,
 }: {
   icon: string;
   label: string;
   color: string;
   onPress: () => void;
   disabled?: boolean;
+  size?: number;
 }) {
   return (
     <Pressable
@@ -22,7 +24,7 @@ export function IconButton({
       disabled={disabled}
       accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
-      style={{ minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.5 : 1 }}
+      style={({ pressed }) => ({ minWidth: size, minHeight: size, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.5 : pressed ? 0.65 : 1 })}
     >
       <Icon name={icon} size={16} color={color} />
     </Pressable>

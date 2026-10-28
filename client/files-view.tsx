@@ -3,7 +3,7 @@ import { useRpc, useTranslation, useWorkspace } from "@getpaseo/plugin/client";
 import { copyText, Icon, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, Text, View, type StyleProp, type TextInput as NativeTextInput, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Easing, Pressable, Text, View, type StyleProp, type TextInput as NativeTextInput, type ViewStyle } from "react-native";
 import { recentFilesRpc, type RecentFile, type TransferJob } from "../shared/transfer";
 import type { LocalApi } from "./bridge";
 import { errorMessage, IconButton } from "./kit";
@@ -11,7 +11,7 @@ import { messages } from "./messages";
 import { addSendFiles, attachSendJobs, isActive, syncSendQueue, type SendFile } from "./send-queue";
 import { ageParts, baseName, formatBytes, parentName, progressOf, receiveDirectory, resolveRemotePath } from "./transfer-format";
 import { useSshTarget } from "./use-target";
-import { canPickFiles, pickFiles, pickFolder, readSendDirectory, revealInFolder, writeSendDirectory } from "./web";
+import { canPickFiles, cardHoverDuration, pickFiles, pickFolder, readSendDirectory, revealInFolder, writeSendDirectory } from "./web";
 
 interface FilesViewProps {
   theme: PluginTheme;
@@ -245,7 +245,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
             <View style={styles.grow} />
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: pendingFiles.length === 0 || starting.size > 0 }}
               disabled={pendingFiles.length === 0 || starting.size > 0} onPress={sendPicked}
-              style={[styles.primary, (pendingFiles.length === 0 || starting.size > 0) && styles.disabledPrimary]}>
+              style={({ pressed }) => [styles.primary, (pendingFiles.length === 0 || starting.size > 0) && styles.disabledPrimary, pressed && styles.primaryPressed]}>
               <Text style={[styles.primaryText, (pendingFiles.length === 0 || starting.size > 0) && styles.disabledPrimaryText]}>
                 {pendingFiles.length > 0 ? t("sendCount", { count: pendingFiles.length }) : sending ? t("sending") : allSent ? t("sent") : t("send")}
               </Text>
@@ -298,9 +298,9 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
             const active = receiving.has(path) || !!job && isActive(job);
             return (
               <HoverPressable key={`${row.kind}:${path}`} label={t("receiveFile", { name: row.kind === "file" ? row.file.name : path })}
-                disabled={active} style={[styles.row, styles.file, needle && index === 0 && styles.hovered]} hoverStyle={styles.hovered} onPress={() => void receive(path)}>
+                disabled={active} highlighted={!!needle && index === 0} style={[styles.row, styles.file]} hoverStyle={styles.hovered} onPress={() => void receive(path)}>
                 <Icon name="FileText" size={16} color={muted} />
-                <View style={styles.grow}>
+                <View style={[styles.grow, styles.fileText]}>
                   <Text style={styles.title} numberOfLines={1}>{row.kind === "file" ? row.file.name : path}</Text>
                   {row.kind === "file" ? <Text style={styles.muted} numberOfLines={1}>{[parentName(row.file.path, directory), formatBytes(row.file.size), ago(row.file)].filter(Boolean).join(" · ")}</Text> : null}
                 </View>
@@ -322,18 +322,34 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
   );
 }
 
-function HoverPressable({ label, style, hoverStyle, disabled, onPress, children }: {
+function HoverPressable({ label, style, hoverStyle, disabled, highlighted = false, onPress, children }: {
   label: string;
   style: StyleProp<ViewStyle>;
   hoverStyle: ViewStyle;
   disabled?: boolean;
+  highlighted?: boolean;
   onPress: () => void;
   children: ReactNode;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const feedback = useRef(new Animated.Value(highlighted ? 0.05 : 0)).current;
+  useEffect(() => {
+    Animated.timing(feedback, {
+      toValue: !disabled && pressed ? 0.09 : highlighted ? 0.05 : !disabled && hovered ? 0.04 : 0,
+      duration: cardHoverDuration() ?? 100,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      useNativeDriver: false,
+    }).start();
+    return () => feedback.stopAnimation();
+  }, [disabled, feedback, highlighted, hovered, pressed]);
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} hitSlop={8}
-    onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)} onPress={onPress}
-    style={({ pressed }) => [style, (hovered || pressed) && hoverStyle]}>{children}</Pressable>;
+    onHoverIn={() => { if (cardHoverDuration() !== null) setHovered(true); }} onHoverOut={() => setHovered(false)}
+    onPressIn={() => setPressed(true)} onPressOut={() => setPressed(false)} onPress={onPress}
+    style={[style, { overflow: "hidden" }]}>
+    <Animated.View pointerEvents="none" style={[{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }, hoverStyle, { opacity: feedback }]} />
+    {children}
+  </Pressable>;
 }
 
 function TransferLine({ path, job, theme, styles, starting, retryDisabled, onRemove, onCancel, onRetry, onCopy, onReveal }: {
@@ -379,12 +395,12 @@ function TransferLine({ path, job, theme, styles, starting, retryDisabled, onRem
 function createStyles(theme: PluginTheme, compact: boolean) {
   const { colors } = theme;
   return {
-    view: { gap: 14 },
+    view: { gap: 12 },
     panelView: { flex: 1, minHeight: 0 },
     panelContent: { flex: 1, minHeight: 0 },
     row: { flexDirection: "row" as const, alignItems: "center" as const, gap: 9 },
     grow: { flex: 1, minWidth: 0 },
-    tabs: { gap: 24, borderBottomWidth: 1, borderBottomColor: colors.border },
+    tabs: { gap: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
     tab: { minWidth: 0, flexShrink: 1, minHeight: compact ? 42 : 40, paddingBottom: 8, justifyContent: "center" as const, borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
     selectedTab: { borderBottomColor: colors.foreground },
     tabText: { color: colors.foregroundMuted, fontSize: 13, fontWeight: "500" as const },
@@ -393,13 +409,14 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     focusedBar: { borderColor: colors.foregroundMuted },
     input: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 12, paddingVertical: 8, outlineWidth: 0, outlineStyle: "solid" as const },
     path: { color: colors.foreground, fontSize: 12, paddingVertical: 8 },
-    textAction: { minHeight: compact ? 40 : 36, paddingHorizontal: 4, borderRadius: 4, justifyContent: "center" as const },
+    textAction: { minHeight: compact ? 40 : 28, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center" as const },
     sendQueue: { minHeight: 86, marginTop: 12, paddingVertical: 3 },
     emptyQueue: { minHeight: 80, paddingVertical: 29, textAlign: "center" as const, color: colors.foregroundMuted, fontSize: 12 },
     sendActions: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 0, paddingTop: 12, paddingBottom: 0, minHeight: compact ? 51 : 47 },
     secondary: { gap: 6, height: compact ? 38 : 34, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
     actionText: { color: colors.foreground, fontSize: 12 },
     primary: { minHeight: compact ? 38 : 34, minWidth: 92, paddingHorizontal: 12, borderRadius: 6, justifyContent: "center" as const, backgroundColor: colors.foreground },
+    primaryPressed: { opacity: 0.8 },
     primaryText: { color: colors.surface0, fontSize: 12, fontWeight: "600" as const, textAlign: "center" as const },
     disabledPrimary: { backgroundColor: colors.surface2 },
     disabledPrimaryText: { color: colors.foregroundMuted, fontWeight: "400" as const },
@@ -407,10 +424,11 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     muted: { color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 },
     small: { color: colors.foregroundMuted, fontSize: 11, lineHeight: 18, flexShrink: 0 },
     note: { paddingVertical: 12 },
-    hovered: { backgroundColor: colors.surface2 },
-    recentHead: { marginTop: 14, marginBottom: 5 },
+    hovered: { backgroundColor: colors.foreground },
+    recentHead: { marginTop: 12, marginBottom: 4, paddingHorizontal: 10 },
     listHead: { minHeight: 22 },
-    file: { minHeight: 52, paddingVertical: 7, paddingHorizontal: 7, marginHorizontal: -7, borderRadius: 6, gap: 10 },
+    file: { minHeight: compact ? 56 : 52, paddingVertical: 6, paddingHorizontal: 10, marginVertical: 2, borderRadius: 8, gap: 10 },
+    fileText: { gap: 2 },
     showMore: { justifyContent: "center" as const, minHeight: compact ? 40 : 34, marginTop: 2, marginBottom: 4, borderRadius: 6, gap: 5 },
     receiveFolder: { marginBottom: 12 },
     receiveTransfers: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 14 },
