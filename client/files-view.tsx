@@ -8,6 +8,7 @@ import { recentFilesRpc, type RecentFile, type TransferJob } from "../shared/tra
 import type { LocalApi } from "./bridge";
 import { errorMessage, IconButton } from "./kit";
 import { messages } from "./messages";
+import { InstallHint } from "./install-hint";
 import { addSendFiles, attachSendJobs, isActive, syncSendQueue, type SendFile } from "./send-queue";
 import { ageParts, baseName, formatBytes, parentName, progressOf, receiveDirectory, resolveRemotePath } from "./transfer-format";
 import { useSshTarget } from "./use-target";
@@ -33,7 +34,8 @@ export function FilesView(props: FilesViewProps) {
   const workspace = useWorkspace(props.workspaceId, (item) => ({ directory: item.directory, name: item.name }));
   const styles = useMemo(() => createStyles(props.theme, props.compact), [props.theme, props.compact]);
   if (pending || !workspace) return <ActivityIndicator color={props.theme.colors.foregroundMuted} />;
-  if (!api || !target) return <Text style={styles.muted}>{t(target ? "needLocal" : "notSsh")}</Text>;
+  if (!api) return <InstallHint theme={props.theme} side="local" />;
+  if (!target) return <Text style={styles.muted}>{t("notSsh")}</Text>;
   return <Transfers key={`${props.hostId}:${props.workspaceId}`} {...props} api={api} target={target} directory={workspace.directory} name={workspace.name} styles={styles} />;
 }
 

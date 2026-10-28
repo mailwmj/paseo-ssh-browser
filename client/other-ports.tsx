@@ -1,6 +1,6 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useTranslation } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/ui";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { messages } from "./messages";
@@ -17,6 +17,9 @@ export function OtherPorts({ rows, theme, compact, onOpen, onClose, onReconnect,
   const [expanded, setExpanded] = useState(false);
   const [stopping, setStopping] = useState<Row | null>(null);
   const [stoppingPort, setStoppingPort] = useState<number | null>(null);
+  const [selectedPort, setSelectedPort] = useState<number | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
+  const selected = rows.find((row) => row.port === selectedPort);
   if (!rows.length) return null;
   const { colors } = theme;
   return <View style={{ backgroundColor: colors.surface1, borderRadius: 8, overflow: "hidden" }}>
@@ -39,25 +42,37 @@ export function OtherPorts({ rows, theme, compact, onOpen, onClose, onReconnect,
           {row.forward || row.disconnected ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>{row.forward ? t("mapping", { remote: row.port, local: row.forward.localPort }) : t("disconnected")}</Text> : null}
           {row.forward?.connectionError ? <Text style={{ color: colors.statusDanger, fontSize: 12, lineHeight: 17 }}>{t("remoteConnectionFailed")}</Text> : null}
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-          {(["http", "https"] as const).map((protocol) => <Pressable key={protocol} accessibilityRole="button"
-            accessibilityLabel={t("openPortProtocol", { port: row.port, protocol: protocol.toUpperCase() })}
-            onPress={() => onOpen(row, protocol)} style={({ pressed }) => ({ minHeight: 36, justifyContent: "center", paddingHorizontal: 12, borderRadius: 6, backgroundColor: pressed ? colors.surface0 : colors.surface2 })}>
-            <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "500" }}>{protocol.toUpperCase()}</Text>
-          </Pressable>)}
-          {row.disconnected ? <Pressable accessibilityRole="button" onPress={() => onReconnect(row)} style={{ minHeight: 36, justifyContent: "center", paddingHorizontal: 10 }}><Text style={{ color: colors.foreground, fontSize: 12 }}>{t("reconnect")}</Text></Pressable> : null}
-          {row.forward || row.disconnected ? <Pressable accessibilityRole="button" accessibilityLabel={t("unplug", { port: row.port })}
-            onPress={() => onClose(row)} style={{ width: 36, minHeight: 36, alignItems: "center", justifyContent: "center" }}>
-            <Icon name="Unplug" size={16} color={colors.foregroundMuted} />
-          </Pressable> : null}
-          {row.pid !== null && row.startedAt !== null ? <Pressable accessibilityRole="button" accessibilityLabel={t("stopServicePort", { port: row.port })}
-            disabled={stoppingPort !== null} accessibilityState={{ disabled: stoppingPort !== null }}
-            onPress={() => setStopping(row)} style={{ width: 36, minHeight: 36, alignItems: "center", justifyContent: "center", opacity: stoppingPort !== null ? 0.5 : 1 }}>
-            <Icon name="Power" size={16} color={colors.statusDanger} />
-          </Pressable> : null}
-        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title: t("port", { port: row.port }) })}
+          onPress={() => setSelectedPort(row.port)} style={({ pressed }) => ({ alignSelf: compact ? "flex-end" : "auto", minHeight: 36, justifyContent: "center", paddingHorizontal: 14, borderRadius: 6, backgroundColor: pressed ? colors.surface0 : colors.surface2 })}>
+          <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "500" }}>{t("actions")}</Text>
+        </Pressable>
       </View>)}
     </View> : null}
+    <Modal title={selected ? t("port", { port: selected.port }) : ""} open={selected !== undefined} onOpenChange={(open) => { if (!open) { setHint(null); setSelectedPort(null); } }}>
+      <Modal.Content contentContainerStyle={{ padding: 12, gap: 2 }}>
+        {selected ? <>
+          {[
+            ...(["http", "https"] as const).map((protocol) => ({
+              key: protocol, label: t("tryProtocol", { protocol: protocol.toUpperCase() }),
+              hint: t(protocol === "http" ? "httpHint" : "httpsHint"), action: () => onOpen(selected, protocol),
+            })),
+            ...(selected.disconnected ? [{ key: "reconnect", label: t("reconnect"), hint: t("reconnectHint"), action: () => onReconnect(selected) }] : []),
+            ...(selected.forward || selected.disconnected ? [{ key: "close", label: t("unplug", { port: selected.port }), hint: t("unplugHint"), action: () => onClose(selected) }] : []),
+            ...(selected.pid !== null && selected.startedAt !== null ? [{ key: "stop", label: t("stopService"), hint: t("stopServiceHint"), action: () => setStopping(selected) }] : []),
+          ].map((action) => <Pressable key={action.key} accessibilityRole="button" accessibilityHint={action.hint}
+            disabled={action.key === "stop" && stoppingPort !== null}
+            onHoverIn={() => setHint(action.hint)} onHoverOut={() => setHint(null)}
+            onFocus={() => setHint(action.hint)} onBlur={() => setHint(null)}
+            onPress={() => { setHint(null); setSelectedPort(null); action.action(); }}
+            style={({ pressed }) => ({ minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderRadius: 6, backgroundColor: pressed ? colors.surface2 : "transparent", opacity: action.key === "stop" && stoppingPort !== null ? 0.5 : 1 })}>
+            <Text style={{ color: action.key === "stop" ? colors.statusDanger : colors.foreground, fontSize: 14 }}>{action.label}</Text>
+          </Pressable>)}
+          <View style={{ minHeight: 42, paddingHorizontal: 12, paddingTop: 6 }}>
+            {hint ? <Text style={{ color: colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>{hint}</Text> : null}
+          </View>
+        </> : null}
+      </Modal.Content>
+    </Modal>
     <StopServiceConfirm row={stopping} theme={theme} onOpenChange={(open) => { if (!open) setStopping(null); }}
       onConfirm={(row) => { setStopping(null); setStoppingPort(row.port); void onStop(row).finally(() => setStoppingPort(null)); }} />
   </View>;

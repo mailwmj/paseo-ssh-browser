@@ -17,6 +17,7 @@ import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { useSshTarget } from "./use-target";
 import { OtherPorts } from "./other-ports";
 import { StopServiceConfirm } from "./stop-service-confirm";
+import { InstallHint } from "./install-hint";
 
 type Styles = ReturnType<typeof createStyles>;
 
@@ -34,7 +35,7 @@ export function BrowserPanel(props: PluginWorkspacePanelProps) {
   if (!target || !api) {
     return (
       <View style={[styles.screen, styles.center]}>
-        <Text style={styles.muted}>{t(target ? "needLocal" : "notSsh")}</Text>
+        {!api ? <InstallHint theme={theme} side="local" /> : <Text style={styles.muted}>{t("notSsh")}</Text>}
       </View>
     );
   }

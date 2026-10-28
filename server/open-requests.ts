@@ -58,7 +58,7 @@ export class OpenRequests {
     this.pruneDesktops();
     const online = [...this.desktops];
     if (online.length === 0) {
-      throw new Error("No eligible desktop is connected. Open Paseo Desktop with the same SSH Browser version on both hosts and an SSH mapping for this remote host.");
+      throw new Error("No eligible desktop is connected. Open Paseo Desktop, enable the same SSH Browser version on both hosts, and configure an SSH mapping for this remote host. To install on the missing host, run: paseo plugin add git:https://github.com/mailwmj/paseo-ssh-browser.git");
     }
     if (online.length !== 1) {
       throw new Error("Multiple eligible desktops are connected. Keep only the intended desktop connected to this remote host before opening a page.");

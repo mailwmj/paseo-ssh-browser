@@ -14,6 +14,7 @@ import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { cardHoverDuration, readHostRegistry } from "./web";
 import { OtherPorts } from "./other-ports";
 import { StopServiceConfirm } from "./stop-service-confirm";
+import { InstallHint } from "./install-hint";
 
 type Navigation = PluginScreenProps["navigation"];
 type Styles = ReturnType<typeof createStyles>;
@@ -131,7 +132,7 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
         </Modal.Content>
       </Modal>
 
-      {api === null ? <Text style={styles.notice}>{t("needLocal")}</Text> : null}
+      {api === null ? <InstallHint theme={theme} side="local" /> : null}
       {saved.error ? <Text style={styles.error}>{errorMessage(saved.error)}</Text> : null}
       {api && saved.isPending && sections.length === 0 ? (
         <View style={styles.loadingState}><ActivityIndicator size="small" color={theme.colors.foregroundMuted} /></View>
@@ -156,8 +157,11 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
           }} />
       ) : null}
       {api && selected ? (
-        <HostSection key={selected.target} target={selected.target} serverId={selected.serverId}
-          styles={styles} theme={theme} compact={layout.compact} navigation={navigation} />
+        <>
+          <InstallHint theme={theme} side="remote" />
+          <HostSection key={selected.target} target={selected.target} serverId={selected.serverId}
+            styles={styles} theme={theme} compact={layout.compact} navigation={navigation} />
+        </>
       ) : null}
     </ScrollView>
   );
