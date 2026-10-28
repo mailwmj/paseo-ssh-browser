@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseScanOutput, PortScanner, SCAN_SCRIPT } from "../server/scan";
+import { remoteHost } from "../shared/ports";
 import type { RemoteExec } from "../server/ssh";
 
 const line = (...fields: (string | number)[]) => ["P", ...fields].join("\t");
@@ -91,6 +92,28 @@ esac
     assert.equal(page.probe, "html");
     assert.equal(page.protocol, "https");
     assert.equal(page.title, "Secure");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the scan script reports a device-bound wildcard listener as loopback", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ssh-browser-scan-"));
+  try {
+    writeFileSync(join(dir, "ss"), "#!/bin/sh\nprintf 'LISTEN 0 128 *%%eth0:5353 0.0.0.0:*\\nLISTEN 0 128 0.0.0.0%%eth0:68 0.0.0.0:*\\nLISTEN 0 128 [::]%%eth0:5354 [::]:*\\n'\n", { mode: 0o755 });
+    const result = spawnSync("sh", ["-s", "--"], { input: SCAN_SCRIPT, encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}` } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(parseScanOutput(result.stdout).lines.map((entry) => entry.host), ["127.0.0.1", "127.0.0.1", "127.0.0.1"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the scan script normalizes interface-qualified IPv4 and IPv6 listeners", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ssh-browser-scan-"));
+  try {
+    writeFileSync(join(dir, "ss"), "#!/bin/sh\nprintf 'LISTEN 0 128 [fd7a:115c::1]%%tailscale0:4444 [::]:*\\nLISTEN 0 128 [fe80::1%%eth0]:5555 [::]:*\\nLISTEN 0 128 127.0.0.53%%lo:53 0.0.0.0:*\\n'\n", { mode: 0o755 });
+    const result = spawnSync("sh", ["-s", "--"], { input: SCAN_SCRIPT, encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}` } });
+    assert.equal(result.status, 0, result.stderr);
+    const hosts = parseScanOutput(result.stdout).lines.map((entry) => entry.host);
+    assert.deepEqual(hosts, ["fd7a:115c::1", "fe80::1", "127.0.0.53"]);
+    assert.ok(hosts.every((host) => remoteHost.safeParse(host).success));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

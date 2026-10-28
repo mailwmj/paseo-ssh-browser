@@ -25,12 +25,12 @@ while read -r _state _recvq _sendq local _peer rest; do
   i=$((i + 1))
   port=${D}{local##*:}
   addr=${D}{local%:*}
+  addr=${D}{addr%%\%*}
   case "$addr" in
-    '*'|0.0.0.0|'[::]'|'[::ffff:0.0.0.0]') host=127.0.0.1 ;;
+    '*'|'*%'*|0.0.0.0|0.0.0.0%*|'[::]'|'[::]%'*|'[::ffff:0.0.0.0]') host=127.0.0.1 ;;
     '['*) host=${D}{addr#[}; host=${D}{host%]} ;;
     *) host=$addr ;;
   esac
-  host=${D}{host%%\%*}
   pid=$(printf '%s' "$rest" | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p')
   cwd=
   cmd=
