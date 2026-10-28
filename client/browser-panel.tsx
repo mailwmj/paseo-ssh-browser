@@ -43,6 +43,7 @@ export function BrowserPanel(props: PluginWorkspacePanelProps) {
 
 function Pages({
   theme,
+  layout,
   host,
   navigation,
   workspaceId,
@@ -171,7 +172,7 @@ function Pages({
           }}><Icon name="History" size={16} color={theme.colors.foregroundMuted} /><Text style={styles.recentText} numberOfLines={1}>{page.url}</Text><Icon name="ArrowUpRight" size={16} color={theme.colors.foregroundMuted} /></Pressable>)}
         </View>
       </View> : null}
-      <OtherPorts rows={otherRows} theme={theme} onOpen={(row, protocol) => {
+      <OtherPorts rows={otherRows} theme={theme} compact={layout.compact} onOpen={(row, protocol) => {
         void ports.open(row, { protocol, workspaceId }).catch((error) => toast.error(errorMessage(error)));
       }} onClose={(row) => { void ports.close(row.port).catch((error) => toast.error(errorMessage(error))); }}
       onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }}

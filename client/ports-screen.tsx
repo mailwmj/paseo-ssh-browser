@@ -215,7 +215,7 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
           );
         })}
       </View>
-      <OtherPorts rows={ports.otherRows} theme={theme} onOpen={(row, protocol) => {
+      <OtherPorts rows={ports.otherRows} theme={theme} compact={compact} onOpen={(row, protocol) => {
         void ports.open(row, { protocol }).catch((error) => toast.error(errorMessage(error)));
       }} onClose={(row) => { void ports.close(row.port).catch((error) => toast.error(errorMessage(error))); }}
       onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }}
