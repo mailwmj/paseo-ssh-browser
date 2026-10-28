@@ -1,7 +1,7 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
-export const OPEN_PROTOCOL = 1;
+export const OPEN_PROTOCOL = 2;
 export const POLL_MS = 15_000;
 export const OPEN_TIMEOUT_MS = 60_000;
 
@@ -56,8 +56,8 @@ export const openResult = z.object({
   remoteUrl: z.string(),
   localUrl: z.string(),
   localPort: z.number().int().min(1).max(65535),
-  // openBrowser is void: page loading must be checked separately with the browser tools.
-  status: z.literal("navigation_requested"),
+  // The agent must open and verify the returned URL with browser tools.
+  status: z.literal("tunnel_ready"),
 });
 export type OpenResult = z.infer<typeof openResult>;
 

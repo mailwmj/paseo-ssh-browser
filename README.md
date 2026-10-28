@@ -18,9 +18,9 @@ Send files from your computer to the host a workspace runs on, and receive files
 
 Use Paseo **0.14.0-beta.1 or later on both the daemon and Desktop**, and install the same SSH Browser version on the desktop's own daemon and the remote daemon. Reload both copies after an update. An existing agent receives `open_remote_url` when its session next opens, before its next idle prompt.
 
-The agent calls `open_remote_url({"url":"http://localhost:3000/dashboard?tab=home#details"})` after starting the remote development server. The desktop establishes an SSH forward and automatically opens and focuses a browser tab in that agent's remote workspace. No manual panel action is needed. The beta navigation API requires a panel, so an additional **SSH Browser** tab remains available beside the browser.
+The agent calls `open_remote_url({"url":"http://localhost:3000/dashboard?tab=home#details"})` after starting the remote development server. The desktop silently establishes an SSH forward. The tool returns `localUrl`, the actual `localPort`, `workspaceId`, `serverId`, and `status: "tunnel_ready"`. The agent must call `browser_new_tab` with `localUrl`, then inspect the returned browser ID with `browser_snapshot` or `browser_wait`. The tab opens in the background; the tool itself does not open or verify the page.
 
-The tool returns `localUrl`, the actual `localPort`, `workspaceId`, `serverId`, and `status: "navigation_requested"`. The agent must then use `browser_list_tabs` to match `localUrl` and inspect that tab with `browser_snapshot` or `browser_wait`. Navigation being requested does not establish that the page loaded. Do not use `browser_new_tab` with the remote localhost URL.
+Use this flow with only one Paseo Desktop browser host connected to the remote daemon. `browser_new_tab` selects the most recently connected browser host, which must be the desktop where the tunnel was created. Never pass the original remote localhost URL to it.
 
 HTTP and HTTPS loopback URLs (`localhost`, `127.0.0.1`, `[::1]`) are supported, including paths, queries, and fragments. HTTPS stays HTTPS and uses the browser's normal certificate checks. `localhost` on the remote host is forwarded to `127.0.0.1`; use `[::1]` for an IPv6-only service. URLs containing credentials and non-loopback destinations are rejected.
 
@@ -30,7 +30,7 @@ The tool selects the single connected Desktop with a matching SSH destination an
 
 Agent instructions for remote web development:
 
-> After starting or updating a remote web app for preview, proactively call `open_remote_url` with the desired full URL. Printing a URL does not open it. Then find the returned local URL using `browser_list_tabs` and verify the page with the Paseo browser tools. Report tunnel/navigation errors; do not fall back to opening the same local port directly.
+> After starting or updating a remote web app for preview, proactively call `open_remote_url` with the desired full URL. Printing a URL does not open it. Then call `browser_new_tab` with the returned local URL and verify the page using its browser ID. Report tunnel or browser errors; do not fall back to opening the same local port directly.
 
 The instruction is also included in the tool description. Registration and instructions alone do not prove that a model will call it: verify a normal development prompt on the installed Desktop before treating the workflow as accepted. The plugin does not watch chat output or automatically open every printed URL.
 

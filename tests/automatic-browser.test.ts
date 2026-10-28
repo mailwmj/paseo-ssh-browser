@@ -20,19 +20,16 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-test("automatically mounts the panel and uses the returned tunnel endpoint in the original remote workspace", async () => {
+test("silently returns the actual tunnel endpoint for the requested remote URL", async () => {
   const browser = new AutomaticBrowser();
-  const navigations: unknown[] = [];
-  let panels = 0;
   const local = api({ open: async (input) => {
     assert.deepEqual(input, { target: "dev", remoteHost: "::1", remotePort: 3000 });
     return { ...input, localPort: 44001, url: "http://localhost:44001/" };
   } });
   const result = await browser.open({ request: request(), api: local, target: "dev", signal: new AbortController().signal,
-    authorize: async () => true, openPanel: () => { panels++; browser.attach("workspace", (input) => navigations.push(input)); } });
-  assert.equal(panels, 1);
-  assert.equal(result.status, "navigation_requested");
-  assert.deepEqual(navigations, [{ url: "https://127.0.0.1:44001/dashboard?tab=home#details", workspaceId: "workspace", serverId: "remote" }]);
+    authorize: async () => true });
+  assert.equal(result.status, "tunnel_ready");
+  assert.equal(result.localUrl, "https://127.0.0.1:44001/dashboard?tab=home#details");
 });
 
 test("a canceled slow tunnel does not open a panel or page, and does not close shared tunnels", async () => {
@@ -40,49 +37,33 @@ test("a canceled slow tunnel does not open a panel or page, and does not close s
   const signal = new AbortController();
   const tunnel = deferred<void>();
   const started = deferred<void>();
-  let opens = 0;
   const opening = browser.open({ request: request(), api: api({ open: async (input) => {
     started.resolve(); await tunnel.promise;
     return { ...input, localPort: 44001, url: "http://localhost:44001/" };
-  } }), target: "dev", signal: signal.signal, authorize: async () => true, openPanel: () => { opens++; } });
+  } }), target: "dev", signal: signal.signal, authorize: async () => true });
   const rejected = assert.rejects(opening, /canceled/);
   await started.promise;
   signal.abort(); tunnel.resolve();
   await rejected;
-  assert.equal(opens, 0);
 });
 
-test("cancellation while the panel mounts prevents a late navigation", async () => {
-  const browser = new AutomaticBrowser();
-  const signal = new AbortController();
-  const mounted = deferred<void>();
-  let navigations = 0;
-  const opening = browser.open({ request: request(), api: api(), target: "dev", signal: signal.signal, authorize: async () => true, openPanel: () => mounted.resolve() });
-  const rejected = assert.rejects(opening, /canceled/);
-  await mounted.promise;
-  signal.abort();
-  browser.attach("workspace", () => { navigations++; });
-  await rejected;
-  assert.equal(navigations, 0);
-});
-
-test("stale SSH mappings, SSH errors, and absent Desktop navigation never report success", async () => {
-  for (const local of [api({ scan: async () => ({ serverId: "wrong", ports: [] }) }), api({ open: async () => { throw new Error("Permission denied"); } }), api()]) {
+test("stale SSH mappings and SSH errors never report success", async () => {
+  for (const local of [api({ scan: async () => ({ serverId: "wrong", ports: [] }) }), api({ open: async () => { throw new Error("Permission denied"); } })]) {
     const browser = new AutomaticBrowser();
     await assert.rejects(browser.open({ request: request(), api: local, target: "dev", signal: new AbortController().signal,
-      authorize: async () => true, openPanel: () => { browser.attach("workspace", undefined); } }), /does not match|Permission denied|requires Paseo Desktop/);
+      authorize: async () => true }), /does not match|Permission denied/);
   }
 });
 
 test("expired requests and authorization revoked during tunnel creation cannot navigate", async () => {
   const browser = new AutomaticBrowser();
   const expired = { ...request(), expiresAt: Date.now() - 1 };
-  await assert.rejects(browser.open({ request: expired, api: api(), target: "dev", signal: new AbortController().signal, authorize: async () => true, openPanel: () => assert.fail("opened expired request") }), /expired/);
+  await assert.rejects(browser.open({ request: expired, api: api(), target: "dev", signal: new AbortController().signal, authorize: async () => true }), /expired/);
   let active = true;
   await assert.rejects(browser.open({ request: request(), api: api({ open: async (input) => {
     active = false;
     return { ...input, localPort: 44001, url: "http://localhost:44001/" };
-  } }), target: "dev", signal: new AbortController().signal, authorize: async () => active, openPanel: () => assert.fail("opened canceled request") }), /no longer active/);
+  } }), target: "dev", signal: new AbortController().signal, authorize: async () => active }), /no longer active/);
 });
 
 test("requires a unique SSH mapping, including manually saved targets", async () => {

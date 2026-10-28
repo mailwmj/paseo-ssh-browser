@@ -12,7 +12,7 @@ function context(workspaceId: string | null): AgentToolContext {
   };
 }
 
-test("the tool takes ownership from its context and reports navigation separately from page loading", async () => {
+test("the tool takes ownership from its context and reports the tunnel separately from opening a page", async () => {
   const broker = new OpenRequests();
   try {
     const tool = openRemoteUrlTool(broker);
@@ -22,11 +22,11 @@ test("the tool takes ownership from its context and reports navigation separatel
     assert.equal(request.workspaceId, "actual-workspace");
     assert.equal(request.serverId, "remote");
     const result = { requestId: request.requestId, workspaceId: request.workspaceId, serverId: request.serverId, remoteUrl: request.remoteUrl,
-      localUrl: "http://127.0.0.1:45001/dashboard?tab=home#details", localPort: 45001, status: "navigation_requested" as const };
+      localUrl: "http://127.0.0.1:45001/dashboard?tab=home#details", localPort: 45001, status: "tunnel_ready" as const };
     broker.finish({ clientId: "desktop", requestId: request.requestId, outcome: { ok: true, result } });
     const response = await output;
     assert.deepEqual(response.structuredContent, result);
-    assert.match(response.text!, /browser_list_tabs/);
+    assert.match(response.text!, /browser_new_tab/);
     assert.match(response.text!, /browser_snapshot/);
   } finally { broker.stop(); }
 });

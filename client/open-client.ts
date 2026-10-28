@@ -44,7 +44,6 @@ export function startOpenClient(client: PluginClientContext, browser: AutomaticB
               const result = await browser.open({
                 request, api, target, signal: controller.signal,
                 authorize: async () => (await client.rpc(authorizeOpenRpc, { clientId, requestId: request.requestId })).active,
-                openPanel: () => client.openPanel("browser", { workspaceId: request.workspaceId }),
               });
               if (!controller.signal.aborted) {
                 await client.rpc(finishOpenRpc, { clientId, requestId: request.requestId, outcome: { ok: true, result } });

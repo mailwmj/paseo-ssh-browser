@@ -21,7 +21,7 @@ type Styles = ReturnType<typeof createStyles>;
 
 const tabSchema = z.object({ autoOpened: z.boolean() });
 
-export function BrowserPanel(props: PluginWorkspacePanelProps & { suppressAutoOpen?: () => boolean }) {
+export function BrowserPanel(props: PluginWorkspacePanelProps) {
   const { theme, layout, host } = props;
   const { t } = useTranslation(messages);
   const styles = useMemo(() => createStyles(theme, layout.compact), [theme, layout.compact]);
@@ -48,8 +48,7 @@ function Pages({
   tab,
   target,
   styles,
-  suppressAutoOpen,
-}: PluginWorkspacePanelProps & { target: string; styles: Styles; suppressAutoOpen?: () => boolean }) {
+}: PluginWorkspacePanelProps & { target: string; styles: Styles }) {
   const { t } = useTranslation(messages);
   const toast = useToast();
   const api = useApi();
@@ -69,10 +68,10 @@ function Pages({
   // The first time this tab finds exactly one page of its workspace, open it without being asked.
   const only = rows.length === 1 ? rows[0] : null;
   useEffect(() => {
-    if (suppressAutoOpen?.() || state.autoOpened || !ports.loaded || !only || only.forward || only.disconnected) return;
+    if (state.autoOpened || !ports.loaded || !only || only.forward || only.disconnected) return;
     setState({ autoOpened: true });
     void open(only);
-  }, [suppressAutoOpen, state.autoOpened, ports.loaded, only?.port]);
+  }, [state.autoOpened, ports.loaded, only?.port]);
 
   const submit = () => {
     const parsed = parseAddress(address);
@@ -86,9 +85,16 @@ function Pages({
   };
 
   return (
-    <View style={styles.screen}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <View style={styles.heading}>
+        <Text style={styles.headingTitle}>{t("services")}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("rescan")} onPress={ports.refresh} style={styles.refresh}>
+          {ports.loading ? <ActivityIndicator size="small" color={theme.colors.foregroundMuted} /> : <Icon name="RefreshCw" size={16} color={theme.colors.foregroundMuted} />}
+          <Text style={styles.secondaryAction}>{t("rescan")}</Text>
+        </Pressable>
+      </View>
       <View style={[styles.bar, addressFocused && styles.barFocused]}>
-        <Icon name="Globe" size={16} color={theme.colors.foregroundMuted} />
+        <Icon name="Globe" size={17} color={theme.colors.foregroundMuted} />
         <TextInput
           value={address}
           onChangeText={setAddress}
@@ -102,117 +108,101 @@ function Pages({
           style={styles.input}
           accessibilityLabel={t("address")}
         />
-        {ports.loading ? (
-          <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
-        ) : (
-          <IconButton icon="RefreshCw" label={t("rescan")} color={theme.colors.foregroundMuted} onPress={ports.refresh} />
-        )}
+        <Pressable accessibilityRole="button" onPress={submit} style={styles.openButton}>
+          <Text style={styles.openButtonText}>{t("openAction")}</Text>
+        </Pressable>
       </View>
       {ports.error ? <Text style={styles.error}>{t("scanFailed", { error: errorMessage(ports.error) })}</Text> : null}
-      {ports.loaded && rows.length === 0 ? (
-        <View style={styles.center}>
-          <View style={styles.emptyIcon}>
-            <Icon name="Globe" size={22} color={theme.colors.foregroundMuted} />
-          </View>
-          <Text style={styles.muted}>{t("noWorkspacePages")}</Text>
+      <View style={styles.section}>
+        <View style={styles.sectionHeading}>
+          <Text style={styles.sectionTitle}>{t("workspacePages")}</Text>
+          {ports.loaded ? <Text style={styles.count}>{rows.length}</Text> : null}
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          {rows.map((row) => (
-            <Pressable
-              key={row.port}
-              accessibilityRole="button"
-              accessibilityLabel={row.label ?? `localhost:${row.port}`}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              onPress={() => void (row.disconnected ? ports.reconnect(row).catch((error) => toast.error(errorMessage(error))) : open(row))}
-            >
-              <Icon name="Globe" size={16} color={theme.colors.foregroundMuted} />
-              <View style={styles.rowText}>
-                <Text style={styles.title} numberOfLines={1}>
-                  {row.label ?? `localhost:${row.port}`}
-                </Text>
-                <Text style={row.forward ? styles.forwarded : styles.muted} numberOfLines={1}>
-                  {row.forward ? t("mapping", { remote: row.port, local: row.forward.localPort }) : row.disconnected ? t("disconnected") : `${row.protocol ?? "http"}://localhost:${row.port}`}
-                </Text>
-                {row.agent ? <Text style={styles.muted} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}{row.agent.stopped ? ` · ${t("agentStopped")}` : ""}</Text> : null}
-                {row.forward?.connectionError ? <Text style={styles.error}>{t("remoteConnectionFailed")}</Text> : null}
+        {!ports.loaded ? <Text style={styles.muted}>{t("scanning")}</Text> : rows.length === 0 ? (
+          <View style={styles.empty}><Text style={styles.muted}>{t("noWorkspacePages")}</Text></View>
+        ) : (
+          <View style={styles.list}>
+            {rows.map((row) => (
+              <View key={row.port} style={styles.serviceRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("openPage", { title: row.label ?? `localhost:${row.port}` })}
+                  style={({ pressed }) => [styles.serviceMain, pressed && styles.rowPressed]}
+                  onPress={() => void (row.disconnected ? ports.reconnect(row).catch((error) => toast.error(errorMessage(error))) : open(row))}
+                >
+                  <Icon name="Globe" size={18} color={theme.colors.foregroundMuted} />
+                  <View style={styles.rowText}>
+                    <Text style={styles.title} numberOfLines={1}>{row.label ?? `localhost:${row.port}`}</Text>
+                    <Text style={row.forward ? styles.forwarded : styles.muted} numberOfLines={1}>
+                      {row.forward ? t("mapping", { remote: row.port, local: row.forward.localPort }) : row.disconnected ? t("disconnected") : `${row.protocol ?? "http"}://localhost:${row.port}`}
+                    </Text>
+                    {row.agent ? <Text style={styles.muted} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}{row.agent.stopped ? ` · ${t("agentStopped")}` : ""}</Text> : null}
+                    {row.forward?.connectionError ? <Text style={styles.error}>{t("remoteConnectionFailed")}</Text> : null}
+                  </View>
+                  {ports.opening === row.port ? <ActivityIndicator size="small" color={theme.colors.accent} /> : <Text style={styles.secondaryAction}>{row.disconnected ? t("reconnect") : t("openAction")}</Text>}
+                </Pressable>
+                {row.forward && ports.opening !== row.port ? <View style={styles.rowAction}><IconButton icon="Unplug" label={t("unplug", { port: row.port })} color={theme.colors.foregroundMuted} onPress={() => void ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} /></View> : null}
               </View>
-              {ports.opening === row.port ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-              ) : row.disconnected ? <Text style={styles.title}>{t("reconnect")}</Text> : row.forward ? (
-                <IconButton
-                  icon="Unplug"
-                  label={t("unplug", { port: row.port })}
-                  color={theme.colors.foregroundMuted}
-                  onPress={() => void ports.close(row.port).catch((error) => toast.error(errorMessage(error)))}
-                />
-              ) : null}
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
-      {recentPages.length > 0 ? <View style={{ gap: 4 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={styles.title}>{t("recentPages")}</Text>
+            ))}
+          </View>
+        )}
+      </View>
+      {recentPages.length > 0 ? <View style={styles.section}>
+        <View style={styles.sectionHeading}>
+          <Text style={styles.sectionTitle}>{t("recentPages")}</Text>
           <Pressable accessibilityRole="button" onPress={() => {
             void api?.updateRecent((pages) => pages.filter((page) => page.serverId !== host.id || page.workspaceId !== workspaceId))
               .then(() => queryClient.invalidateQueries({ queryKey: ["recent-pages"] })).catch((error) => toast.error(errorMessage(error)));
-          }}><Text style={styles.muted}>{t("clearRecent")}</Text></Pressable>
+          }}><Text style={styles.secondaryAction}>{t("clearRecent")}</Text></Pressable>
         </View>
-        {recentPages.map((page) => <Pressable key={page.url} accessibilityRole="button" style={styles.row} onPress={() => {
-          const parsed = parseAddress(page.url);
-          if (!parsed) return;
-          const known = [...ports.rows, ...ports.otherRows].find((row) => row.port === parsed.port);
-          void open({ port: parsed.port, host: parsed.remoteHost === "::1" ? "::1" : known?.host ?? parsed.remoteHost, cwd: null, workspaceId }, parsed.url);
-        }}><Text style={styles.muted} numberOfLines={1}>{page.url}</Text></Pressable>)}
+        <View style={styles.list}>
+          {recentPages.map((page) => <Pressable key={page.url} accessibilityRole="button" style={({ pressed }) => [styles.recentRow, pressed && styles.rowPressed]} onPress={() => {
+            const parsed = parseAddress(page.url);
+            if (!parsed) return;
+            const known = [...ports.rows, ...ports.otherRows].find((row) => row.port === parsed.port);
+            void open({ port: parsed.port, host: parsed.remoteHost === "::1" ? "::1" : known?.host ?? parsed.remoteHost, cwd: null, workspaceId }, parsed.url);
+          }}><Icon name="History" size={16} color={theme.colors.foregroundMuted} /><Text style={styles.recentText} numberOfLines={1}>{page.url}</Text><Icon name="ArrowUpRight" size={16} color={theme.colors.foregroundMuted} /></Pressable>)}
+        </View>
       </View> : null}
       <OtherPorts rows={otherRows} theme={theme} onOpen={(row, protocol) => {
         void ports.open(row, { protocol, workspaceId }).catch((error) => toast.error(errorMessage(error)));
       }} onClose={(row) => { void ports.close(row.port).catch((error) => toast.error(errorMessage(error))); }}
       onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }} />
-    </View>
+    </ScrollView>
   );
 }
 
 function createStyles(theme: PluginTheme, compact: boolean) {
   const { colors } = theme;
   return {
-    screen: { flex: 1, backgroundColor: colors.surface0, padding: compact ? 12 : 16, gap: 12 },
+    screen: { flex: 1, backgroundColor: colors.surface0 },
+    content: { paddingHorizontal: compact ? 16 : 28, paddingVertical: compact ? 18 : 28, gap: 24 },
     center: { flex: 1, alignItems: "center" as const, justifyContent: "center" as const, gap: 12 },
-    bar: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      gap: 8,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface1,
-    },
-    barFocused: { borderColor: colors.foregroundMuted, backgroundColor: colors.surface2 },
-    input: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 14, paddingVertical: 9, outlineStyle: "solid" as const, outlineWidth: 0 },
-    list: { gap: 2 },
-    row: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      gap: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 8,
-    },
+    heading: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12 },
+    headingTitle: { color: colors.foreground, fontSize: 20, fontWeight: "600" as const },
+    refresh: { flexDirection: "row" as const, alignItems: "center" as const, gap: 7, minHeight: 40 },
+    bar: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, paddingLeft: 14, paddingRight: 5, minHeight: 50, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface1 },
+    barFocused: { borderColor: colors.foregroundMuted },
+    input: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 14, paddingVertical: 10, outlineStyle: "solid" as const, outlineWidth: 0 },
+    openButton: { minHeight: 38, justifyContent: "center" as const, paddingHorizontal: 16, borderRadius: 6, backgroundColor: colors.foreground },
+    openButtonText: { color: colors.surface0, fontSize: 13, fontWeight: "600" as const },
+    section: { gap: 10 },
+    sectionHeading: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, minHeight: 28, gap: 12 },
+    sectionTitle: { color: colors.foreground, fontSize: 15, fontWeight: "600" as const },
+    count: { color: colors.foregroundMuted, fontSize: 13 },
+    list: { backgroundColor: colors.surface1, borderRadius: 8, overflow: "hidden" as const },
+    serviceRow: { flexDirection: "row" as const, alignItems: "center" as const },
+    serviceMain: { flex: 1, minWidth: 0, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingHorizontal: 14, paddingVertical: 14, minHeight: 72 },
+    rowAction: { paddingRight: 14 },
     rowPressed: { backgroundColor: colors.surface2 },
-    rowText: { flex: 1, gap: 2 },
-    title: { color: colors.foreground, fontSize: 14 },
+    rowText: { flex: 1, minWidth: 0, gap: 4 },
+    title: { color: colors.foreground, fontSize: 14, fontWeight: "600" as const },
     muted: { color: colors.foregroundMuted, fontSize: 12 },
     forwarded: { color: colors.statusSuccess, fontSize: 12 },
     error: { color: colors.statusDanger, fontSize: 13 },
-    emptyIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems: "center" as const,
-      justifyContent: "center" as const,
-      backgroundColor: colors.surface1,
-    },
+    secondaryAction: { color: colors.foregroundMuted, fontSize: 13 },
+    empty: { backgroundColor: colors.surface1, borderRadius: 8, padding: 18 },
+    recentRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, minHeight: 48, paddingHorizontal: 14 },
+    recentText: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 13 },
   };
 }

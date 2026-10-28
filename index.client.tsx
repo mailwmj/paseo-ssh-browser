@@ -1,6 +1,5 @@
 import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
-import { useEffect } from "react";
 import { AutomaticBrowser } from "./client/automatic-browser";
 import { startOpenClient } from "./client/open-client";
 import { buildLocalApi, publishLocalApi, RPCS } from "./client/bridge";
@@ -29,13 +28,7 @@ export default function contribute(client: PluginClientContext) {
     id: "browser",
     title: messages.message("name"),
     icon: "Globe",
-    Component: function AgentBrowserPanel(props) {
-      useEffect(
-        () => automaticBrowser.attach(props.workspaceId, props.navigation?.openBrowser),
-        [props.workspaceId, props.navigation?.openBrowser],
-      );
-      return <BrowserPanel {...props} suppressAutoOpen={() => automaticBrowser.hasRequested(props.workspaceId)} />;
-    },
+    Component: BrowserPanel,
   });
   client.addWorkspacePanel({
     id: "files",

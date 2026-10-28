@@ -5,7 +5,7 @@ import type { OpenRequest, OpenResult } from "../shared/remote-url";
 
 const input = { serverId: "remote", workspaceId: "workspace", agentId: "agent", remoteUrl: "http://localhost:3000/dashboard?tab=home#details" };
 function result(request: OpenRequest): OpenResult {
-  return { ...request, localPort: 43001, localUrl: "http://127.0.0.1:43001/dashboard?tab=home#details", status: "navigation_requested" };
+  return { ...request, localPort: 43001, localUrl: "http://127.0.0.1:43001/dashboard?tab=home#details", status: "tunnel_ready" };
 }
 
 test("the tool waits for the chosen desktop's actual completion and rejects wrong owners/results", async () => {
