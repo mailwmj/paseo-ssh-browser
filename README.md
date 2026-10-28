@@ -1,5 +1,7 @@
 # SSH Browser for Paseo
 
+[简体中文](README.zh-CN.md)
+
 Preview web apps running on an SSH host in Paseo Desktop, and move files between that host and your computer. SSH Browser creates local SSH forwards for remote services, so you can use the browser, hot reload and DevTools while your code runs remotely.
 
 ![SSH Browser showing remote web services](assets/web-services.png)
