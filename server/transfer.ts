@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream, type WriteStream } from "node:fs";
 import { access, link, mkdir, rename, stat, unlink } from "node:fs/promises";
 import path from "node:path";
-import type { TransferJob } from "../shared/transfer";
+import { folderSegment, type TransferJob } from "../shared/transfer";
 import { lastLine, SSH_BASE_ARGS } from "./ssh";
 
 export type SpawnSsh = (args: string[]) => ChildProcess;
@@ -107,11 +107,6 @@ export function localFileName(remotePath: string, platform: NodeJS.Platform = pr
   let name = path.posix.basename(remotePath.replace(/\\/g, "/"));
   if (platform === "win32") name = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/, "");
   return name && name !== "." && name !== ".." ? name : "file";
-}
-
-export function folderSegment(value: string | undefined): string | null {
-  const cleaned = (value ?? "").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim().replace(/^\.+$/, "");
-  return cleaned || null;
 }
 
 interface Entry {

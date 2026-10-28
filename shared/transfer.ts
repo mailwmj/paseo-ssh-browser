@@ -2,6 +2,12 @@ import { defineRpc, defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 import { sshTarget } from "./ports";
 
+// The workspace folder name used on the receiving computer, independent of its operating system.
+export function folderSegment(value: string | undefined): string | null {
+  const cleaned = (value ?? "").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim().replace(/^\.+$/, "");
+  return cleaned || null;
+}
+
 const path = z.string().min(1).max(4096).refine((value) => !value.includes("\0"), "Not a valid path");
 
 export const receiveSettings = defineSettings({

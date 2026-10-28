@@ -1,3 +1,5 @@
+import { folderSegment } from "../shared/transfer";
+
 const UNITS = ["B", "KB", "MB", "GB", "TB"];
 
 export function formatBytes(bytes: number): string {
@@ -40,4 +42,11 @@ export function progressOf(job: { bytes: number; total: number | null }): number
   if (job.total === null) return 0;
   if (job.total === 0) return 1;
   return Math.min(1, job.bytes / job.total);
+}
+
+export function receiveDirectory(root: string, workspace: string): string {
+  const segment = folderSegment(workspace);
+  if (!segment) return root;
+  const separator = root.includes("\\") ? "\\" : "/";
+  return `${root.replace(/[/\\]+$/, "")}${separator}${segment}`;
 }

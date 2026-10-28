@@ -17,10 +17,10 @@ Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local p
 
 Move files between your computer and the SSH host a workspace runs on, without involving the agent, so nothing is added to its context.
 
-- **Send:** in **+ → File transfer** (also available in the Explorer), choose files on your computer, check the folder on the host, which defaults to the workspace directory and is remembered per workspace, and select **Send**.
-- **Receive:** an icon in the workspace header opens a list of files changed in the workspace during the last six hours, newest first. **File transfer** in the Command Center (⌘K) opens the full panel. Click a file to receive it; the search field above the list filters it, and a path typed there (absolute, starting with `~`, or relative to the workspace) is received with Enter.
+- **Send:** open **File transfer** from the workspace header, **+** menu, Explorer or Command Center, switch to **Send to <host>**, check the host directory at the top, add files from your computer and select **Send**. The directory defaults to the workspace and is remembered per workspace. File rows stay in place as progress arrives and keep their completion state; adding files sends only the new ones.
+- **Receive:** the **Download to this computer** tab lists files changed in the workspace during the last six hours, newest first. Click a file to receive it. Search filters the list; an explicit path starting with `/`, `~/`, `./` or `../` can be received with Enter. An unmatched plain search does not start a transfer.
 - Received files go to `<receive folder>/<workspace name>/`. The receive folder defaults to `~/Downloads/Paseo` and can be changed in the panel.
-- Progress, cancel, the final path, and a shortcut to show a received file in your file manager appear as cards.
+- File rows offer progress, cancellation, retry and, once done, copying the host path or showing a downloaded file in your file manager.
 
 A file is never overwritten: if the name exists, the new file is saved as `name (1).ext`. Data is written to a hidden temporary file and moved into place only when the whole file has arrived with the expected size, so a cancelled or interrupted transfer leaves nothing behind. Transfers run through your own `ssh` as `cat` over the existing connection, up to three at a time. Folders, drag and drop, and resuming are not supported. Choosing files and showing them in a folder need Paseo Desktop, which exposes those through its own app, not a plugin API.
 

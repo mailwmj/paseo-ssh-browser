@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, readdir, readFile, rm, truncate, writeFile } from "node
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import type { TransferJob } from "../shared/transfer";
-import { folderSegment, localFileName, placeWithoutOverwriting, remoteCommand, shellQuote, TransferManager } from "../server/transfer";
+import { folderSegment, type TransferJob } from "../shared/transfer";
+import { localFileName, placeWithoutOverwriting, remoteCommand, shellQuote, TransferManager } from "../server/transfer";
 
 // End to end through the real ssh binary, against this machine. Needs passwordless `ssh localhost`.
 const sshLocalhost =

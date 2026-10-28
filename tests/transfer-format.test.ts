@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ageParts, formatBytes, parentName, progressOf, resolveRemotePath, baseName } from "../client/transfer-format";
+import { ageParts, formatBytes, parentName, progressOf, receiveDirectory, resolveRemotePath, baseName } from "../client/transfer-format";
 
 test("sizes read the way file managers show them", () => {
   assert.equal(formatBytes(0), "0 B");
@@ -36,4 +36,12 @@ test("progress is a fraction, empty when the size is unknown", () => {
   assert.equal(progressOf({ bytes: 5, total: null }), 0);
   assert.equal(progressOf({ bytes: 0, total: 0 }), 1);
   assert.equal(progressOf({ bytes: 300, total: 200 }), 1);
+});
+
+test("the displayed receive directory includes the same workspace segment as the transfer service", () => {
+  assert.equal(receiveDirectory("/Users/me/Downloads/Paseo", "my app"), "/Users/me/Downloads/Paseo/my app");
+  assert.equal(receiveDirectory("C:\\Users\\me\\Downloads\\Paseo\\", "app: demo"), "C:\\Users\\me\\Downloads\\Paseo\\app_ demo");
+  assert.equal(receiveDirectory("/tmp/", "../app"), "/tmp/.._app");
+  assert.equal(receiveDirectory("/", "app"), "/app");
+  assert.equal(receiveDirectory("/tmp", "..."), "/tmp");
 });

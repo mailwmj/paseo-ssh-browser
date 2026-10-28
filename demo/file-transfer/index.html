@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>文件传输 · Paseo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-transfer" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h17M17 20l4-4-4-4M21 16H4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7.3"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H5v20h14V7l-5-5Zm0 0v6h5M8 13h8m-8 4h6"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 8V5h6l2 3h10v12H3V8Zm0 3h18"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="13" rx="1.5"/><path d="m4 16-2 5h20l-2-5M9 21h6"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="18" height="7" rx="1.5"/><path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-5-5 5 5-5 5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 8a8 8 0 1 0 0 8M20 3v6h-6"/></symbol>
+  </defs></svg>
+
+  <header class="app-bar">
+    <div class="brand">paseo<span class="slash">/</span><svg class="icon"><use href="#i-server"/></svg><span class="host-name">devbox</span><svg class="icon breadcrumb"><use href="#i-chevron"/></svg><span class="workspace-name">ssh-browser</span></div>
+    <span class="preview-label">交互预览</span>
+  </header>
+
+  <main class="stage">
+    <div class="workspace-toolbar">
+      <div class="workspace-context"><span class="connection-dot"></span>ssh-browser <span class="context-host">on devbox</span></div>
+      <button id="toggle-panel" class="toolbar-button" aria-label="文件传输" title="文件传输" aria-expanded="true" aria-controls="transfer-panel"><svg class="icon" aria-hidden="true"><use href="#i-transfer"/></svg></button>
+    </div>
+
+    <section id="transfer-panel" class="transfer-panel" aria-labelledby="panel-title">
+      <header class="panel-header"><h1 id="panel-title">文件传输</h1><button id="close-panel" class="icon-button" aria-label="关闭文件传输"><svg class="icon"><use href="#i-x"/></svg></button></header>
+
+      <div class="direction-tabs" role="tablist" aria-label="传输方向">
+        <button id="receive-tab" class="direction-tab" role="tab" aria-selected="true" aria-controls="receive-panel" tabindex="0">下载到本机</button>
+        <button id="send-tab" class="direction-tab" role="tab" aria-selected="false" aria-controls="send-panel" tabindex="-1">发送到 devbox</button>
+      </div>
+
+      <section id="transfers-section" class="transfers-section" aria-labelledby="transfers-title" hidden><div class="section-heading"><h2 id="transfers-title">传输记录</h2><button id="clear-completed" class="text-button">清除已完成</button></div><div id="transfers" aria-live="polite"></div></section>
+
+      <div id="receive-panel" role="tabpanel" aria-labelledby="receive-tab">
+      <section class="receive-section" aria-label="devbox 上的文件">
+        <div class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="search" aria-label="搜索 devbox 文件或输入绝对路径" placeholder="搜索 devbox 文件或输入路径" autocomplete="off" spellcheck="false"><button id="clear-search" class="icon-button" aria-label="清除搜索" hidden><svg class="icon small"><use href="#i-x"/></svg></button><kbd id="search-shortcut">⌘ K</kbd></div>
+        <div class="list-heading"><span id="list-label">最近改动</span><span id="list-period">最近 6 小时</span></div>
+        <div id="file-list" class="file-list"></div>
+        <button id="show-more" class="show-more">展开其余 4 个文件<svg class="icon small chevron-down"><use href="#i-chevron"/></svg></button>
+      </section>
+
+      <footer class="panel-footer location-row" aria-label="本机保存位置"><svg class="icon small" aria-hidden="true"><use href="#i-laptop"/></svg><div class="location-path" id="local-path" title="本机保存位置：/Users/mir/Downloads/Paseo/ssh-browser"><span class="location-parent">~/Downloads/Paseo/</span><span class="location-leaf">ssh-browser</span></div><button id="change-folder" class="text-button" aria-label="更改本机保存位置">更改</button></footer>
+      </div>
+
+      <div id="send-panel" role="tabpanel" aria-labelledby="send-tab" hidden>
+        <form id="send-form">
+          <section class="send-section" aria-label="要发送的文件和目标目录">
+            <div class="remote-field"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><input id="remote-input" aria-label="devbox 上的保存目录" title="~/projects/ssh-browser" value="~/projects/ssh-browser" readonly required spellcheck="false" autocomplete="off" autocapitalize="none"><button id="edit-remote" class="text-button" type="button">修改</button></div>
+            <div class="send-queue"><p id="send-empty" class="send-empty">尚未添加文件</p><div id="selected-files" class="selected-files" hidden></div></div>
+          </section>
+          <footer class="send-actions"><button id="choose-files" class="button secondary" type="button"><svg class="icon"><use href="#i-plus"/></svg>添加文件</button><button id="send-files" class="button primary" type="submit" disabled>发送</button></footer>
+        </form>
+      </div>
+    </section>
+    <div id="closed-state" class="closed-state" hidden><svg class="icon"><use href="#i-transfer"/></svg><p>文件传输面板已收起</p><button id="reopen-panel" class="button secondary">打开文件传输</button></div>
+    <p class="demo-note">可体验选择文件、搜索与双向传输。传输使用演示数据。</p>
+  </main>
+
+  <dialog id="picker-dialog" aria-labelledby="picker-title"><form method="dialog"><div class="dialog-header"><div><h2 id="picker-title">选择本机文件</h2><p>发送到 devbox</p></div><button class="icon-button" aria-label="关闭文件选择"><svg class="icon"><use href="#i-x"/></svg></button></div><div class="picker-location"><svg class="icon"><use href="#i-laptop"/></svg>本机<svg class="icon small"><use href="#i-chevron"/></svg>下载</div><div id="picker-files"></div><div class="dialog-footer"><span id="picker-count">未选择文件</span><button class="button ghost">取消</button><button id="confirm-pick" class="button primary" type="button" disabled>选择文件</button></div></form></dialog>
+  <dialog id="folder-dialog" aria-labelledby="folder-title"><form method="dialog"><div class="dialog-header"><div><h2 id="folder-title">本机保存位置</h2><p>下载的文件会保存在工作区文件夹中</p></div><button class="icon-button" aria-label="关闭目录设置"><svg class="icon"><use href="#i-x"/></svg></button></div><div class="folder-body"><label for="folder-input">本机接收目录</label><input id="folder-input" value="~/Downloads/Paseo" spellcheck="false"><div class="folder-preview"><svg class="icon"><use href="#i-folder"/></svg><span id="folder-preview">~/Downloads/Paseo/ssh-browser</span></div><p id="folder-error" class="form-error" hidden>请输入以 / 或 ~/ 开头的目录</p></div><div class="dialog-footer"><button class="button ghost">取消</button><button id="save-folder" class="button primary" type="button">保存位置</button></div></form></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="demo.js"></script>
+</body>
+</html>
