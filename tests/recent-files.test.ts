@@ -30,7 +30,8 @@ test("lists recent regular files newest first and leaves out noise", async () =>
       ["dist/app.zip", 6],
     ]);
     assert.equal(files[0].name, "notes.md");
-    assert.equal(files[0].ageMs, 5_000);
+    // Filesystem timestamp precision can differ slightly from the Date passed to utimes.
+    assert.ok(Math.abs(files[0].ageMs - 5_000) < 1, `Expected an age near 5000ms, got ${files[0].ageMs}ms`);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
