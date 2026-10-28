@@ -254,6 +254,19 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
         </View>
       ) : <Text style={[styles.muted, styles.note]}>{t("sendUnavailable", { host: hostLabel })}</Text> : (
         <View>
+          {savedDirectory ? (
+            <View style={[styles.row, styles.receiveFolder]}>
+              <Icon name="FolderDown" size={17} color={muted} />
+              <View style={styles.grow}>
+                <Text style={styles.small}>{t("saveTo")}</Text>
+                <Text style={styles.savePath} numberOfLines={1} ellipsizeMode="middle" accessibilityLabel={t("receivedLocation", { folder: savedDirectory })} selectable>{savedDirectory}</Text>
+              </View>
+              {desktop ? <HoverPressable label={t("changeReceiveFolder")} style={styles.folderAction} hoverStyle={styles.hovered}
+                onPress={() => void chooseFolder().catch((error) => toast.error(errorMessage(error)))}>
+                <Icon name="Pencil" size={16} color={muted} />
+              </HoverPressable> : null}
+            </View>
+          ) : null}
           {receiveJobs.length > 0 ? (
             <View style={styles.receiveTransfers}>
               <View style={[styles.row, styles.listHead]}>
@@ -304,14 +317,6 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
               <Text style={styles.small}>{showAll ? t("collapseFiles") : t("showMoreFiles", { count: files.length - VISIBLE_FILES })}</Text>
               <Icon name={showAll ? "ChevronUp" : "ChevronDown"} size={13} color={muted} />
             </HoverPressable>
-          ) : null}
-          {savedDirectory ? (
-            <View style={[styles.row, styles.receiveFolder]}>
-              <Icon name="Laptop" size={13} color={muted} />
-              <Text style={[styles.small, styles.grow]} numberOfLines={1} ellipsizeMode="middle" accessibilityLabel={t("receivedLocation", { folder: savedDirectory })} selectable>{savedDirectory}</Text>
-              {desktop ? <HoverPressable label={t("changeReceiveFolder")} style={styles.textAction} hoverStyle={styles.hovered}
-                onPress={() => void chooseFolder().catch((error) => toast.error(errorMessage(error)))}><Text style={styles.small}>{t("edit")}</Text></HoverPressable> : null}
-            </View>
           ) : null}
         </View>
       )}
@@ -414,7 +419,9 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     listHead: { minHeight: 22 },
     file: { minHeight: 52, paddingVertical: 7, paddingHorizontal: 7, marginHorizontal: -7, borderRadius: 6, gap: 10 },
     showMore: { justifyContent: "center" as const, minHeight: compact ? 40 : 34, marginTop: 2, marginBottom: 4, borderRadius: 6, gap: 5 },
-    receiveFolder: { minHeight: 38, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, gap: 8 },
+    receiveFolder: { minHeight: 52, gap: 10, marginBottom: 12 },
+    savePath: { color: colors.foreground, fontSize: 12, lineHeight: 18 },
+    folderAction: { width: 36, height: 36, borderRadius: 6, alignItems: "center" as const, justifyContent: "center" as const },
     receiveTransfers: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 14 },
     transferRow: { minHeight: 40, position: "relative" as const, gap: 9 },
     queueTitle: { color: colors.foreground, fontSize: 13, lineHeight: 20 },
