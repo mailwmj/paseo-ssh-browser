@@ -243,7 +243,6 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
   const [closing, setClosing] = useState(false);
   const [confirmStop, setConfirmStop] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
-  const [agentDetailsOpen, setAgentDetailsOpen] = useState(false);
   const [selectingWorkspace, setSelectingWorkspace] = useState(false);
   const hover = useRef(new Animated.Value(0)).current;
   const menuHover = useRef(new Animated.Value(0)).current;
@@ -291,13 +290,13 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
         </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
-        accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => { setAgentDetailsOpen(false); setActionsOpen(true); }}
+        accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => setActionsOpen(true)}
         onHoverIn={() => animateHover(menuHover, 1)} onHoverOut={() => animateHover(menuHover, 0)}
         style={({ pressed }) => [styles.cardMenu, pressed && styles.pressed]}>
         <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: menuHover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
         <Icon name="Ellipsis" size={18} color={theme.colors.foregroundMuted} />
       </Pressable>
-      <Modal title={title} open={actionsOpen} onOpenChange={(open) => { setActionsOpen(open); if (!open) setAgentDetailsOpen(false); }}>
+      <Modal title={title} open={actionsOpen} onOpenChange={setActionsOpen}>
         <Modal.Content contentContainerStyle={styles.dialogList}>
           <View style={styles.serviceDetails}>
             <Text style={styles.cardPort}>{forward ? t("mapping", { remote: row.port, local: forward.localPort }) : t("port", { port: row.port })}{row.protocol === "https" ? " · HTTPS" : ""}</Text>
@@ -322,20 +321,6 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
               <Icon name="Power" size={17} color={theme.colors.statusDanger} />
               <Text style={[styles.menuActionText, styles.dangerText]}>{t("stopService")}</Text>
             </DialogRow>
-          ) : null}
-          {row.agent ? (
-            <>
-              <Pressable accessibilityRole="button" accessibilityState={{ expanded: agentDetailsOpen }}
-                onPress={() => setAgentDetailsOpen(!agentDetailsOpen)}
-                style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionHover]}>
-                <Icon name={agentDetailsOpen ? "ChevronUp" : "ChevronDown"} size={17} color={theme.colors.foregroundMuted} />
-                <Text style={styles.menuActionText}>{t("agentDetails")}</Text>
-              </Pressable>
-              {agentDetailsOpen ? <View style={styles.serviceDetails}>
-                <Text style={styles.cardPort}>{t("agentOwner", { title: row.agent.title })}</Text>
-                {row.agent.stopped ? <Text style={styles.cardPort}>{t("agentStopped")}</Text> : null}
-              </View> : null}
-            </>
           ) : null}
         </Modal.Content>
       </Modal>
