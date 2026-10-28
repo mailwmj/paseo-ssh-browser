@@ -72,6 +72,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
   const recent = useQuery({
     queryKey: ["recent-files", hostId, directory],
     queryFn: () => recentRpc({ directory }),
+    refetchOnMount: "always",
     refetchInterval: 5000,
   });
   const transfers = useQuery({
@@ -80,7 +81,8 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
     refetchInterval: (state) => state.state.data?.some(isActive) ? 500 : 4000,
   });
   const folder = useQuery({ queryKey: ["receive-folder"], queryFn: () => api.receiveFolder() });
-  const files = recent.data?.files ?? [];
+  const loadingRecent = !recent.isFetchedAfterMount && recent.isFetching;
+  const files = loadingRecent ? [] : recent.data?.files ?? [];
   const allJobs = (transfers.data ?? []).filter((job) => job.target === target);
   const byId = new Map(allJobs.map((job) => [job.id, job]));
   const sendFiles = queue.map((file) => ({ ...file, job: file.job ? byId.get(file.job.id) ?? file.job : undefined }));
@@ -291,10 +293,10 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
             <Text style={[styles.small, styles.grow]}>{t(needle ? "searchResults" : "recentFiles")}</Text>
             <Text style={styles.small}>{needle ? t("fileCount", { count: rows.length }) : t("recentPeriod")}</Text>
           </View>
-          {recent.isPending ? <ActivityIndicator color={muted} style={styles.note} /> : null}
+          {recent.isPending || loadingRecent ? <ActivityIndicator color={muted} style={styles.note} /> : null}
           {recent.isError ? <Text style={[styles.muted, styles.note]}>{t("recentFilesFailed")}</Text> : null}
-          {recent.data && files.length === 0 && !needle ? <Text style={[styles.muted, styles.note]}>{t("noRecentFiles")}</Text> : null}
-          {needle && rows.length === 0 && !recent.isPending ? <Text style={[styles.muted, styles.note]}>{t("noMatchingFiles")}</Text> : null}
+          {recent.data && !loadingRecent && files.length === 0 && !needle ? <Text style={[styles.muted, styles.note]}>{t("noRecentFiles")}</Text> : null}
+          {needle && rows.length === 0 && !recent.isPending && !loadingRecent ? <Text style={[styles.muted, styles.note]}>{t("noMatchingFiles")}</Text> : null}
           {rows.map((row, index) => {
             const path = row.kind === "file" ? row.file.path : row.path;
             const job = received.get(path);
