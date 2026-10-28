@@ -19,6 +19,7 @@ interface FilesViewProps {
   hostId: string;
   hostLabel: string;
   workspaceId: string;
+  popover?: boolean;
 }
 
 type Styles = ReturnType<typeof createStyles>;
@@ -37,7 +38,7 @@ export function FilesView(props: FilesViewProps) {
   return <Transfers key={`${props.hostId}:${props.workspaceId}`} {...props} api={api} target={target} directory={workspace.directory} name={workspace.name} styles={styles} />;
 }
 
-function Transfers({ theme, hostId, hostLabel, workspaceId, api, target, directory, name, styles }: FilesViewProps & {
+function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target, directory, name, styles }: FilesViewProps & {
   api: LocalApi;
   target: string;
   directory: string;
@@ -199,7 +200,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, api, target, directo
   );
 
   return (
-    <View style={styles.view}>
+    <View style={[styles.view, !popover && styles.panelView]}>
       <View accessibilityRole="tablist" style={[styles.row, styles.tabs]}>
         {(["receive", "send"] as const).map((tab) => (
           <Pressable key={tab} accessibilityRole="tab" accessibilityState={{ selected: direction === tab }} aria-selected={direction === tab}
@@ -211,6 +212,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, api, target, directo
         ))}
       </View>
 
+      <ScrollView style={popover ? styles.popoverContent : styles.panelContent} nestedScrollEnabled>
       {transfers.isError ? (
         <View style={styles.row}>
           <Text style={[styles.muted, styles.grow]}>{t("transfersFailed")}</Text>
@@ -312,6 +314,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, api, target, directo
           ) : null}
         </View>
       )}
+      </ScrollView>
     </View>
   );
 }
@@ -378,6 +381,9 @@ function createStyles(theme: PluginTheme, compact: boolean) {
   const { colors } = theme;
   return {
     view: { gap: 14 },
+    panelView: { flex: 1, minHeight: 0 },
+    panelContent: { flex: 1, minHeight: 0 },
+    popoverContent: { maxHeight: 320, flexGrow: 0 },
     row: { flexDirection: "row" as const, alignItems: "center" as const, gap: 9 },
     grow: { flex: 1, minWidth: 0 },
     tabs: { gap: 24, borderBottomWidth: 1, borderBottomColor: colors.border },
