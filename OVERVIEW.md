@@ -18,7 +18,7 @@ Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local p
 Move files between your computer and the SSH host a workspace runs on, without involving the agent, so nothing is added to its context.
 
 - **Send:** in **+ → File transfer** (also available in the Explorer), choose files on your computer, check the folder on the host, which defaults to the workspace directory and is remembered per workspace, and select **Send**.
-- **Receive:** an icon in the workspace header opens a list of files changed in the workspace during the last six hours, newest first. **File transfer** in the Command Center (⌘K) opens the full panel. Tick one or more and select **Receive**. A path typed in the field below also works: absolute, starting with `~`, or relative to the workspace.
+- **Receive:** an icon in the workspace header opens a list of files changed in the workspace during the last six hours, newest first. **File transfer** in the Command Center (⌘K) opens the full panel. Click a file to receive it; the search field above the list filters it, and a path typed there (absolute, starting with `~`, or relative to the workspace) is received with Enter.
 - Received files go to `<receive folder>/<workspace name>/`. The receive folder defaults to `~/Downloads/Paseo` and can be changed in the panel.
 - Progress, cancel, the final path, and a shortcut to show a received file in your file manager appear as cards.
 

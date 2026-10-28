@@ -25,15 +25,15 @@ Paseo has no extension point for file context menus, so the plugin uses what exi
   something used occasionally.
 - **Command Center (⌘K)**: "File transfer" opens the panel, with nothing on screen until asked for.
 - **Files panel** (Explorer and workspace tab): the same list plus choosing desktop files to send, a
-  remote path field to receive, the receive folder, and recent transfers.
+  search field that also takes a remote path to receive, the receive folder, and transfers in progress.
 
 ## User stories
 
 1. I pick several desktop files, choose or accept a remote folder, press Send, and they arrive there.
-2. I see progress per file, can cancel one, and see the remote path when it finishes.
+2. I see progress per file, can cancel or retry one, and when it finishes see where it went (copy the remote path, or show the file in its folder).
 3. The remote folder defaults to the workspace and remembers my last choice per workspace.
-4. After an agent writes a file, I open the header icon, tick one or more files, and receive them.
-5. I type a remote path (absolute, `~`, or relative to the workspace) and receive that file.
+4. After an agent writes a file, I open the header icon and click it: one click starts the receive, and the row shows it running, then saved.
+5. I type in the search field to filter the list, or a remote path (absolute, `~`, or relative to the workspace) and press Enter to receive that file. Enter takes the first row.
 6. A finished receive offers "Show in folder"; a finished send offers "Copy path".
 7. A file that already exists at the destination is never overwritten; the new one is saved as
    `name (1).ext`.
@@ -43,6 +43,8 @@ Paseo has no extension point for file context menus, so the plugin uses what exi
 
 | Topic | Decision |
 | --- | --- |
+| Transfer list | Newest three of this session on top, plus anything still running; a failed or cancelled one can be retried. Transfers that were already finished when the view opened are not listed (they carry no time), but their file rows still show a check. |
+| Receive click | One click receives, no selection step: a receive never overwrites, so a stray click costs nothing. A file already running is not started twice. |
 | Recent files | Regular files changed in the last 6 hours under the workspace directory, newest first, at most 30. `node_modules`, `.git` and similar are skipped; symlinks are not followed. |
 | Name conflicts | Never overwrite. The destination is filled through a hard link (`ln`), which fails if the name exists, then the next `name (N)` is tried. |
 | Partial files | Data goes to a hidden temporary file in the destination folder and is linked into place only after the stream ends cleanly. |
