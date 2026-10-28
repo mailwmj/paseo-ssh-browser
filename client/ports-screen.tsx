@@ -2,8 +2,8 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useHosts, useTranslation, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon, Modal, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Easing, Pressable, Text, View } from "react-native";
 import { sshTarget } from "../shared/ports";
 import { groupPortsByWorkspace, workspaceLabel } from "./format";
 import type { WorkspaceEntry } from "./format";
@@ -11,7 +11,7 @@ import { errorMessage } from "./kit";
 import { messages } from "./messages";
 import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
-import { readHostRegistry } from "./web";
+import { cardHoverDuration, readHostRegistry } from "./web";
 
 type Navigation = PluginScreenProps["navigation"];
 type Styles = ReturnType<typeof createStyles>;
@@ -224,6 +224,14 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
   const [closing, setClosing] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [selectingWorkspace, setSelectingWorkspace] = useState(false);
+  const hover = useRef(new Animated.Value(0)).current;
+  const menuHover = useRef(new Animated.Value(0)).current;
+  useEffect(() => () => { hover.stopAnimation(); menuHover.stopAnimation(); }, [hover, menuHover]);
+  const animateHover = (animation: Animated.Value, value: number) => {
+    const duration = cardHoverDuration();
+    if (duration === null) return;
+    Animated.timing(animation, { toValue: value, duration, easing: Easing.bezier(0.25, 0.1, 0.25, 1), useNativeDriver: false }).start();
+  };
   const title = row.label ?? t("portTitle", { port: row.port });
   const forward = forwardStatus === "ready" ? row.forward : undefined;
   const status = forwardStatus === "loading" ? t("checkingForward") : forwardStatus === "error" ? t("forwardUnavailable") :
@@ -235,7 +243,10 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
     try { await onClose(); } finally { setClosing(false); }
   };
   return (
-    <View style={styles.card}>
+    <View style={styles.card}
+      onPointerEnter={(event) => { if (event.nativeEvent.pointerType === "mouse") animateHover(hover, 1); }}
+      onPointerLeave={(event) => { if (event.nativeEvent.pointerType === "mouse") animateHover(hover, 0); }}>
+      <Animated.View pointerEvents="none" style={[styles.cardHover, { opacity: hover }]} />
       <Pressable accessibilityRole="button" accessibilityLabel={`${t("openPage", { title })}, ${status}`}
         accessibilityState={{ disabled: busy, busy: opening }} disabled={busy} onPress={() => onOpen()}
         style={({ pressed }) => [styles.cardMain, pressed && styles.cardPressed]}>
@@ -252,12 +263,17 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
               <View style={[styles.statusDot, forward && styles.statusDotOn]} />}
             <Text style={styles.statusText} numberOfLines={1}>{status}</Text>
           </View>
-          <View style={styles.openAction}><Text style={styles.openActionText}>{t("openAction")}</Text><Icon name="ArrowRight" size={14} color={theme.colors.foreground} /></View>
+          <View style={styles.openAction}>
+            <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: hover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
+            <Text style={styles.openActionText}>{t("openAction")}</Text><Icon name="ArrowRight" size={14} color={theme.colors.foreground} />
+          </View>
         </View>
       </Pressable>
       {row.workspaceId || workspaces.length > 0 || forward ? <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
         accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => setActionsOpen(true)}
+        onHoverIn={() => animateHover(menuHover, 1)} onHoverOut={() => animateHover(menuHover, 0)}
         style={({ pressed }) => [styles.cardMenu, pressed && styles.pressed]}>
+        <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: menuHover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
         <Icon name="Ellipsis" size={18} color={theme.colors.foregroundMuted} />
       </Pressable> : null}
       <Modal title={title} open={actionsOpen} onOpenChange={setActionsOpen}>
@@ -401,6 +417,7 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     groupCount: { color: colors.foregroundMuted, fontSize: 12, fontVariant: ["tabular-nums" as const] },
     cards: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: CARD_GAP },
     card: { minHeight: 144, borderRadius: 8, backgroundColor: colors.surface1, overflow: "hidden" as const },
+    cardHover: { position: "absolute" as const, top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.surface2 },
     cardMain: { flex: 1, minHeight: 144, padding: 16, justifyContent: "space-between" as const, gap: 24 },
     cardPressed: { backgroundColor: colors.surface2 },
     cardHead: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 12, paddingRight: 32 },
@@ -413,6 +430,7 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.foregroundMuted },
     statusDotOn: { backgroundColor: colors.statusSuccess },
     openAction: { minHeight: 34, flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: colors.surface2 },
+    actionHover: { position: "absolute" as const, top: 0, right: 0, bottom: 0, left: 0, borderRadius: 6, backgroundColor: colors.foreground },
     openActionText: { color: colors.foreground, fontSize: 13 },
     cardMenu: { position: "absolute" as const, right: 8, top: 8, width: 36, height: 36, alignItems: "center" as const, justifyContent: "center" as const },
     menuAction: { minHeight: 44, flexDirection: "row" as const, alignItems: "center" as const, gap: 12 },

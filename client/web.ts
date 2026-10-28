@@ -3,6 +3,12 @@ import { parseHostRegistry, type HostRegistry } from "./format";
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
 declare const localStorage: { getItem(key: string): string | null };
+declare const matchMedia: (query: string) => { matches: boolean };
+
+export function cardHoverDuration(): number | null {
+  if (Platform.OS !== "web" || !matchMedia("(hover: hover) and (pointer: fine)").matches) return null;
+  return matchMedia("(prefers-reduced-motion: reduce)").matches ? 100 : 150;
+}
 
 export function isDesktop(): boolean {
   return Platform.OS === "web" && !!(globalThis as unknown as { paseoDesktop?: unknown }).paseoDesktop;
