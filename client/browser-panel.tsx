@@ -148,7 +148,7 @@ function Pages({
                 </Pressable>
                 <View style={styles.rowAction}>
                   {row.forward && ports.opening !== row.port ? <IconButton icon="Unplug" label={t("unplug", { port: row.port })} color={theme.colors.foregroundMuted} onPress={() => void ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} /> : null}
-                  {row.pid !== null && row.startedAt !== null ? <IconButton icon="Square" label={t("stopServicePort", { port: row.port })} color={theme.colors.statusDanger} disabled={stoppingPort !== null} onPress={() => setStopping(row)} /> : null}
+                  {row.pid !== null && row.startedAt !== null ? <IconButton icon="Power" label={t("stopServicePort", { port: row.port })} color={theme.colors.statusDanger} disabled={stoppingPort !== null} onPress={() => setStopping(row)} /> : null}
                 </View>
               </View>
             ))}

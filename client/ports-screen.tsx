@@ -308,7 +308,7 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
           ) : null}
           {row.pid !== null && row.startedAt !== null ? (
             <DialogRow styles={styles} onPress={() => { setActionsOpen(false); setConfirmStop(true); }}>
-              <Icon name="Square" size={17} color={theme.colors.statusDanger} />
+              <Icon name="Power" size={17} color={theme.colors.statusDanger} />
               <Text style={[styles.menuActionText, styles.dangerText]}>{t("stopService")}</Text>
             </DialogRow>
           ) : null}

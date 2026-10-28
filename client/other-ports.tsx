@@ -53,7 +53,7 @@ export function OtherPorts({ rows, theme, compact, onOpen, onClose, onReconnect,
           {row.pid !== null && row.startedAt !== null ? <Pressable accessibilityRole="button" accessibilityLabel={t("stopServicePort", { port: row.port })}
             disabled={stoppingPort !== null} accessibilityState={{ disabled: stoppingPort !== null }}
             onPress={() => setStopping(row)} style={{ width: 36, minHeight: 36, alignItems: "center", justifyContent: "center", opacity: stoppingPort !== null ? 0.5 : 1 }}>
-            <Icon name="Square" size={16} color={colors.statusDanger} />
+            <Icon name="Power" size={16} color={colors.statusDanger} />
           </Pressable> : null}
         </View>
       </View>)}
