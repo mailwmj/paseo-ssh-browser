@@ -4,6 +4,7 @@ export const messages = defineTranslations({
   resources: {
     en: {
       name: "SSH Browser",
+      settingsTitle: "Disable file transfer",
       open: "Open SSH Browser",
       services: "Web services",
       workspacePages: "Workspace pages",
@@ -114,6 +115,7 @@ export const messages = defineTranslations({
     },
     "zh-CN": {
       name: "SSH 浏览器",
+      settingsTitle: "关闭文件传输",
       open: "打开 SSH 浏览器",
       services: "网页服务",
       workspacePages: "工作区网页",

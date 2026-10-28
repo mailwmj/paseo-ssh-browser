@@ -66,7 +66,7 @@ export default function contribute(client: PluginClientContext) {
     return null;
   }
   client.addSettingsScreen({
-    id: "settings", title: messages.message("name"), icon: "Globe",
+    id: "settings", title: messages.message("settingsTitle"), icon: "Globe",
     Component: (props) => <><ObserveVisibility /><Settings {...props} /></>,
   });
   void client.rpc(settingsRpc(visibilitySettings.id).read, {}).then((state) => {
