@@ -182,10 +182,7 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
   const toast = useToast();
   const api = useApi();
   const ports = useHostPorts({ api, target, serverId, navigation });
-  const [contentWidth, setContentWidth] = useState(0);
   const groups = groupPortsByWorkspace(ports.rows);
-  const columns = compact ? 1 : Math.max(1, Math.min(3, Math.floor((contentWidth + CARD_GAP) / (280 + CARD_GAP))));
-  const cardWidth = contentWidth ? (contentWidth - CARD_GAP * (columns - 1)) / columns : undefined;
 
   return (
     <View style={styles.section}>
@@ -199,7 +196,7 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
       {ports.scanComplete && ports.forwardStatus === "ready" && ports.rows.length === 0 ? (
         <View style={styles.emptyPages}><Text style={styles.emptyTitle}>{t("noPages")}</Text><Text style={styles.muted}>{t("noPagesHint")}</Text></View>
       ) : null}
-      <View style={styles.groups} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
+      <View style={styles.groups}>
         {groups.map(({ workspaceId, rows }) => {
           const workspace = workspaceId ? ports.workspacesById.get(workspaceId) : undefined;
           const heading = workspace ? workspaceLabel(workspace) : groups.length === 1 ? t("services") : t("unassignedServices");
@@ -212,7 +209,7 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
               </View>
               <View style={styles.cards}>
                 {rows.map((row) => (
-                  <View key={row.port} style={{ width: cardWidth }}>
+                  <View key={row.port} style={styles.cardSlot}>
                     <PortCard row={row} opening={ports.opening === row.port}
                       forwardStatus={ports.forwardStatus} styles={styles} theme={theme}
                       workspaces={ports.canOpenWorkspace ? [...ports.workspacesById.values()] : []}
@@ -246,6 +243,7 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
   const [closing, setClosing] = useState(false);
   const [confirmStop, setConfirmStop] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [agentDetailsOpen, setAgentDetailsOpen] = useState(false);
   const [selectingWorkspace, setSelectingWorkspace] = useState(false);
   const hover = useRef(new Animated.Value(0)).current;
   const menuHover = useRef(new Animated.Value(0)).current;
@@ -284,7 +282,7 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
           <View style={styles.statusRow}>
             {busy ? <ActivityIndicator size="small" color={theme.colors.foregroundMuted} /> :
               <View style={[styles.statusDot, forward && !forward.connectionError && styles.statusDotOn, forward?.connectionError && styles.statusDotError]} />}
-            <Text style={styles.statusText}>{portLabel ? `${portLabel} · ` : ""}{status}</Text>
+            <Text style={styles.statusText} numberOfLines={2}>{portLabel ? `${portLabel} · ` : ""}{status}</Text>
           </View>
           <View style={styles.openAction}>
             <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: hover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
@@ -293,18 +291,16 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
         </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
-        accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => setActionsOpen(true)}
+        accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => { setAgentDetailsOpen(false); setActionsOpen(true); }}
         onHoverIn={() => animateHover(menuHover, 1)} onHoverOut={() => animateHover(menuHover, 0)}
         style={({ pressed }) => [styles.cardMenu, pressed && styles.pressed]}>
         <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: menuHover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
         <Icon name="Ellipsis" size={18} color={theme.colors.foregroundMuted} />
       </Pressable>
-      <Modal title={title} open={actionsOpen} onOpenChange={setActionsOpen}>
+      <Modal title={title} open={actionsOpen} onOpenChange={(open) => { setActionsOpen(open); if (!open) setAgentDetailsOpen(false); }}>
         <Modal.Content contentContainerStyle={styles.dialogList}>
           <View style={styles.serviceDetails}>
             <Text style={styles.cardPort}>{forward ? t("mapping", { remote: row.port, local: forward.localPort }) : t("port", { port: row.port })}{row.protocol === "https" ? " · HTTPS" : ""}</Text>
-            {row.agent ? <Text style={styles.cardPort}>{t("agentOwner", { title: row.agent.title })}</Text> : null}
-            {row.agent?.stopped ? <Text style={styles.cardPort}>{t("agentStopped")}</Text> : null}
             {forward?.connectionError ? <Text style={[styles.cardPort, styles.dangerText]}>{t("remoteConnectionFailed")}</Text> : null}
           </View>
           {row.workspaceId ? <DialogRow styles={styles} onPress={() => { setActionsOpen(false); onOpen({ external: true }); }}>
@@ -326,6 +322,20 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
               <Icon name="Power" size={17} color={theme.colors.statusDanger} />
               <Text style={[styles.menuActionText, styles.dangerText]}>{t("stopService")}</Text>
             </DialogRow>
+          ) : null}
+          {row.agent ? (
+            <>
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded: agentDetailsOpen }}
+                onPress={() => setAgentDetailsOpen(!agentDetailsOpen)}
+                style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionHover]}>
+                <Icon name={agentDetailsOpen ? "ChevronUp" : "ChevronDown"} size={17} color={theme.colors.foregroundMuted} />
+                <Text style={styles.menuActionText}>{t("agentDetails")}</Text>
+              </Pressable>
+              {agentDetailsOpen ? <View style={styles.serviceDetails}>
+                <Text style={styles.cardPort}>{t("agentOwner", { title: row.agent.title })}</Text>
+                {row.agent.stopped ? <Text style={styles.cardPort}>{t("agentStopped")}</Text> : null}
+              </View> : null}
+            </>
           ) : null}
         </Modal.Content>
       </Modal>
@@ -463,9 +473,10 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     groupTitle: { flexShrink: 1, minWidth: 0, color: colors.foreground, fontSize: 14, fontWeight: "600" as const },
     groupCount: { color: colors.foregroundMuted, fontSize: 12, fontVariant: ["tabular-nums" as const] },
     cards: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: CARD_GAP },
-    card: { minHeight: 96, borderRadius: 8, backgroundColor: colors.surface1, overflow: "hidden" as const },
+    cardSlot: { width: 320, maxWidth: "100%" as const },
+    card: { height: 120, borderRadius: 8, backgroundColor: colors.surface1, overflow: "hidden" as const },
     cardHover: { position: "absolute" as const, top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.surface2 },
-    cardMain: { flex: 1, minHeight: 96, padding: 16, justifyContent: "space-between" as const, gap: 12 },
+    cardMain: { flex: 1, padding: 16, justifyContent: "space-between" as const, gap: 12 },
     cardPressed: { backgroundColor: colors.surface2 },
     cardHead: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 12, paddingRight: 32 },
     cardNames: { flex: 1, minWidth: 0, gap: 4 },
