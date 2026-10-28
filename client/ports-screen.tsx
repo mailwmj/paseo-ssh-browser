@@ -12,6 +12,7 @@ import { messages } from "./messages";
 import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { cardHoverDuration, readHostRegistry } from "./web";
+import { OtherPorts } from "./other-ports";
 
 type Navigation = PluginScreenProps["navigation"];
 type Styles = ReturnType<typeof createStyles>;
@@ -47,9 +48,9 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
   const refresh = () => {
     setRefreshing(true);
     void Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["scan"] }),
+      selected && api ? api.scan({ target: selected.target, refresh: true }).then((data) => queryClient.setQueryData(["scan", selected.target], data)) : Promise.resolve(),
       queryClient.invalidateQueries({ queryKey: ["forwards"] }),
-    ]).finally(() => setRefreshing(false));
+    ]).catch((error) => toast.error(errorMessage(error))).finally(() => setRefreshing(false));
   };
 
   const connected = registry.ssh.flatMap(({ serverId, target }) => {
@@ -175,7 +176,7 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
 
   return (
     <View style={styles.section}>
-      {ports.error ? <Text style={styles.error}>{errorMessage(ports.error)}</Text> : null}
+      {ports.error ? <Text style={styles.error}>{t("scanFailed", { error: errorMessage(ports.error) })}</Text> : null}
       {ports.forwardError ? <Text style={styles.error}>{t("forwardError", { error: errorMessage(ports.forwardError) })}</Text> : null}
       {(ports.loading || ports.forwardStatus === "loading") && ports.rows.length === 0 && !ports.error ? (
         <View style={styles.loadingState}>
@@ -203,6 +204,7 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
                       forwardStatus={ports.forwardStatus} styles={styles} theme={theme}
                       workspaces={ports.canOpenWorkspace ? [...ports.workspacesById.values()] : []}
                       onOpen={(options) => ports.open(row, options).catch((error) => toast.error(errorMessage(error)))}
+                      onReconnect={() => ports.reconnect(row).catch((error) => toast.error(errorMessage(error)))}
                       onClose={() => ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} />
                   </View>
                 ))}
@@ -211,14 +213,19 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
           );
         })}
       </View>
+      <OtherPorts rows={ports.otherRows} theme={theme} onOpen={(row, protocol) => {
+        void ports.open(row, { protocol }).catch((error) => toast.error(errorMessage(error)));
+      }} onClose={(row) => { void ports.close(row.port).catch((error) => toast.error(errorMessage(error))); }}
+      onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }} />
     </View>
   );
 }
 
-function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOpen, onClose }: {
+function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOpen, onClose, onReconnect }: {
   row: Row; opening: boolean; forwardStatus: "ready" | "error" | "loading"; styles: Styles; theme: PluginTheme;
   workspaces: WorkspaceEntry[];
   onOpen: (options?: { external?: boolean; workspaceId?: string }) => void; onClose: () => Promise<void>;
+  onReconnect: () => void;
 }) {
   const { t } = useTranslation(messages);
   const [closing, setClosing] = useState(false);
@@ -235,7 +242,7 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
   const title = row.label ?? t("portTitle", { port: row.port });
   const forward = forwardStatus === "ready" ? row.forward : undefined;
   const status = forwardStatus === "loading" ? t("checkingForward") : forwardStatus === "error" ? t("forwardUnavailable") :
-    forward ? t("forwardedTo", { port: forward.localPort }) : t("notForwarded");
+    forward ? t("mapping", { remote: row.port, local: forward.localPort }) : row.disconnected ? t("disconnected") : t("notForwarded");
   const busy = opening || closing;
   const close = async () => {
     setActionsOpen(false);
@@ -248,13 +255,15 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
       onPointerLeave={(event) => { if (event.nativeEvent.pointerType === "mouse") animateHover(hover, 0); }}>
       <Animated.View pointerEvents="none" style={[styles.cardHover, { opacity: hover }]} />
       <Pressable accessibilityRole="button" accessibilityLabel={`${t("openPage", { title })}, ${status}`}
-        accessibilityState={{ disabled: busy, busy: opening }} disabled={busy} onPress={() => onOpen()}
+        accessibilityState={{ disabled: busy, busy: opening }} disabled={busy} onPress={() => row.disconnected ? onReconnect() : onOpen()}
         style={({ pressed }) => [styles.cardMain, pressed && styles.cardPressed]}>
         <View style={styles.cardHead}>
           <Icon name="Globe" size={19} color={theme.colors.foregroundMuted} />
           <View style={styles.cardNames}>
             <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
-            <Text style={styles.cardPort}>{t("port", { port: row.port })}</Text>
+            <Text style={styles.cardPort}>{t("port", { port: row.port })}{row.protocol === "https" ? " · HTTPS" : ""}</Text>
+            {row.agent ? <Text style={styles.cardPort} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}{row.agent.stopped ? ` · ${t("agentStopped")}` : ""}</Text> : null}
+            {forward?.connectionError ? <Text style={styles.cardPort}>{t("remoteConnectionFailed")}</Text> : null}
           </View>
         </View>
         <View style={styles.cardFooter}>
@@ -265,11 +274,11 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
           </View>
           <View style={styles.openAction}>
             <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: hover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
-            <Text style={styles.openActionText}>{t("openAction")}</Text><Icon name="ArrowRight" size={14} color={theme.colors.foreground} />
+            <Text style={styles.openActionText}>{t(row.disconnected ? "reconnect" : "openAction")}</Text><Icon name="ArrowRight" size={14} color={theme.colors.foreground} />
           </View>
         </View>
       </Pressable>
-      {row.workspaceId || workspaces.length > 0 || forward ? <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
+      {row.workspaceId || workspaces.length > 0 || forward || row.disconnected ? <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
         accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => setActionsOpen(true)}
         onHoverIn={() => animateHover(menuHover, 1)} onHoverOut={() => animateHover(menuHover, 0)}
         style={({ pressed }) => [styles.cardMenu, pressed && styles.pressed]}>
@@ -285,7 +294,7 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
             <Icon name="Folder" size={16} color={theme.colors.foregroundMuted} />
             <Text style={styles.menuActionText}>{t("openInWorkspace")}</Text>
           </Pressable> : null}
-          {forward ? (
+          {forward || row.disconnected ? (
             <Pressable accessibilityRole="button" onPress={() => void close()} style={styles.menuAction}>
               <Icon name="Unplug" size={16} color={theme.colors.foregroundMuted} />
               <Text style={styles.menuActionText}>{t("unplug", { port: row.port })}</Text>

@@ -20,6 +20,8 @@ The tool returns `localUrl`, the actual `localPort`, `workspaceId`, `serverId`, 
 
 HTTP and HTTPS loopback URLs (`localhost`, `127.0.0.1`, `[::1]`) are supported, including paths, queries, and fragments. HTTPS stays HTTPS and uses the browser's normal certificate checks. `localhost` on the remote host is forwarded to `127.0.0.1`; use `[::1]` for an IPv6-only service. URLs containing credentials and non-loopback destinations are rejected.
 
+The workspace panel's address field also accepts HTTP and HTTPS loopback URLs. Both manual and agent previews open the forwarded address at `127.0.0.1`, so an HTTPS certificate must be trusted by the desktop browser and valid for that address; a certificate valid only for `localhost` can show a certificate error.
+
 The tool selects the single connected Desktop with a matching SSH destination and a compatible local plugin bridge. No eligible desktop, multiple eligible desktops/windows, a mismatched destination, SSH failure, cancellation, and timeout return errors. With multiple eligible desktops, keep only the intended one connected to the remote host. The plugin does not infer which computer sent the prompt. Requests expire after 60 seconds; pending navigation is discarded after cancellation, disconnection, or plugin cleanup. A tunnel already started can remain available for other previews; request cleanup does not close shared tunnels.
 
 Agent instructions for remote web development:

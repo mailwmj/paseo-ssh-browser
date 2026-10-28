@@ -6,7 +6,7 @@ import {
   type PluginWorkspacePanelProps,
 } from "@getpaseo/plugin/client";
 import { Icon, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { z } from "zod";
@@ -16,6 +16,7 @@ import { messages } from "./messages";
 import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { readHostRegistry } from "./web";
+import { OtherPorts } from "./other-ports";
 
 type Styles = ReturnType<typeof createStyles>;
 
@@ -66,18 +67,22 @@ function Pages({
   const toast = useToast();
   const api = useApi();
   const ports = useHostPorts({ api, target, serverId: host.id, navigation });
+  const queryClient = useQueryClient();
+  const recent = useQuery({ queryKey: ["recent-pages"], queryFn: () => (api as LocalApi).recent(), enabled: api !== null, refetchInterval: 10_000 });
+  const recentPages = (recent.data ?? []).filter((page) => page.serverId === host.id && page.workspaceId === workspaceId);
   const rows = ports.rows.filter((row) => row.workspaceId === workspaceId);
+  const otherRows = ports.otherRows.filter((row) => row.workspaceId === workspaceId);
   const [state, setState] = useTabState(tab, tabSchema, { autoOpened: false });
   const [address, setAddress] = useState("");
   const [addressFocused, setAddressFocused] = useState(false);
 
-  const open = (row: Pick<Row, "port" | "host" | "cwd" | "workspaceId">, path?: string) =>
-    ports.open(row, { path, workspaceId }).catch((error) => toast.error(errorMessage(error)));
+  const open = (row: Pick<Row, "port" | "host" | "cwd" | "workspaceId"> & { protocol?: "http" | "https" | null }, remoteUrl?: string) =>
+    ports.open(row, { remoteUrl, workspaceId }).catch((error) => toast.error(errorMessage(error)));
 
   // The first time this tab finds exactly one page of its workspace, open it without being asked.
   const only = rows.length === 1 ? rows[0] : null;
   useEffect(() => {
-    if (suppressAutoOpen?.() || state.autoOpened || !ports.loaded || !only || only.forward) return;
+    if (suppressAutoOpen?.() || state.autoOpened || !ports.loaded || !only || only.forward || only.disconnected) return;
     setState({ autoOpened: true });
     void open(only);
   }, [suppressAutoOpen, state.autoOpened, ports.loaded, only?.port]);
@@ -89,7 +94,7 @@ function Pages({
       return;
     }
     const known = ports.rows.find((row) => row.port === parsed.port);
-    void open({ port: parsed.port, host: known?.host ?? "127.0.0.1", cwd: null, workspaceId }, parsed.path);
+    void open({ port: parsed.port, host: parsed.remoteHost === "::1" ? "::1" : known?.host ?? parsed.remoteHost, cwd: null, workspaceId }, parsed.url);
     setAddress("");
   };
 
@@ -116,7 +121,7 @@ function Pages({
           <IconButton icon="RefreshCw" label={t("rescan")} color={theme.colors.foregroundMuted} onPress={ports.refresh} />
         )}
       </View>
-      {ports.error ? <Text style={styles.error}>{errorMessage(ports.error)}</Text> : null}
+      {ports.error ? <Text style={styles.error}>{t("scanFailed", { error: errorMessage(ports.error) })}</Text> : null}
       {ports.loaded && rows.length === 0 ? (
         <View style={styles.center}>
           <View style={styles.emptyIcon}>
@@ -132,7 +137,7 @@ function Pages({
               accessibilityRole="button"
               accessibilityLabel={row.label ?? `localhost:${row.port}`}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              onPress={() => void open(row)}
+              onPress={() => void (row.disconnected ? ports.reconnect(row).catch((error) => toast.error(errorMessage(error))) : open(row))}
             >
               <Icon name="Globe" size={16} color={theme.colors.foregroundMuted} />
               <View style={styles.rowText}>
@@ -140,12 +145,14 @@ function Pages({
                   {row.label ?? `localhost:${row.port}`}
                 </Text>
                 <Text style={row.forward ? styles.forwarded : styles.muted} numberOfLines={1}>
-                  http://localhost:{row.forward?.localPort ?? row.port}
+                  {row.forward ? t("mapping", { remote: row.port, local: row.forward.localPort }) : row.disconnected ? t("disconnected") : `${row.protocol ?? "http"}://localhost:${row.port}`}
                 </Text>
+                {row.agent ? <Text style={styles.muted} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}{row.agent.stopped ? ` · ${t("agentStopped")}` : ""}</Text> : null}
+                {row.forward?.connectionError ? <Text style={styles.error}>{t("remoteConnectionFailed")}</Text> : null}
               </View>
               {ports.opening === row.port ? (
                 <ActivityIndicator size="small" color={theme.colors.accent} />
-              ) : row.forward ? (
+              ) : row.disconnected ? <Text style={styles.title}>{t("reconnect")}</Text> : row.forward ? (
                 <IconButton
                   icon="Unplug"
                   label={t("unplug", { port: row.port })}
@@ -157,6 +164,25 @@ function Pages({
           ))}
         </ScrollView>
       )}
+      {recentPages.length > 0 ? <View style={{ gap: 4 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={styles.title}>{t("recentPages")}</Text>
+          <Pressable accessibilityRole="button" onPress={() => {
+            void api?.updateRecent((pages) => pages.filter((page) => page.serverId !== host.id || page.workspaceId !== workspaceId))
+              .then(() => queryClient.invalidateQueries({ queryKey: ["recent-pages"] })).catch((error) => toast.error(errorMessage(error)));
+          }}><Text style={styles.muted}>{t("clearRecent")}</Text></Pressable>
+        </View>
+        {recentPages.map((page) => <Pressable key={page.url} accessibilityRole="button" style={styles.row} onPress={() => {
+          const parsed = parseAddress(page.url);
+          if (!parsed) return;
+          const known = [...ports.rows, ...ports.otherRows].find((row) => row.port === parsed.port);
+          void open({ port: parsed.port, host: parsed.remoteHost === "::1" ? "::1" : known?.host ?? parsed.remoteHost, cwd: null, workspaceId }, parsed.url);
+        }}><Text style={styles.muted} numberOfLines={1}>{page.url}</Text></Pressable>)}
+      </View> : null}
+      <OtherPorts rows={otherRows} theme={theme} onOpen={(row, protocol) => {
+        void ports.open(row, { protocol, workspaceId }).catch((error) => toast.error(errorMessage(error)));
+      }} onClose={(row) => { void ports.close(row.port).catch((error) => toast.error(errorMessage(error))); }}
+      onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }} />
     </View>
   );
 }

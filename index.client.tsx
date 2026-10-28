@@ -63,6 +63,8 @@ export default function contribute(client: PluginClientContext) {
           targets: (input) => client.rpc(RPCS.targets, input),
           readSettings: (input) => client.rpc(RPCS.readSettings, input),
           writeSettings: (input) => client.rpc(RPCS.writeSettings, input),
+          readRecent: (input) => client.rpc(RPCS.readRecent, input),
+          writeRecent: (input) => client.rpc(RPCS.writeRecent, input),
         }),
       );
     })

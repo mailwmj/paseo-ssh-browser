@@ -34,14 +34,17 @@ while read -r _state _recvq _sendq local _peer rest; do
   pid=$(printf '%s' "$rest" | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p')
   cwd=
   cmd=
+  agent=
   if [ -n "$pid" ]; then
     cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null)
     cmd=$(tr '\000\t\n' '   ' < "/proc/$pid/cmdline" 2>/dev/null | cut -c1-300)
+    agent=$(tr '\000' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's/^PASEO_AGENT_ID=\([A-Za-z0-9_-]*\)$/\1/p' | head -n 1)
   fi
   case "$host" in *:*) urlhost="[$host]" ;; *) urlhost=$host ;; esac
   (
     probe=nocurl
     title=
+    protocol=http
     case "$known" in
       *" $port:$pid "*) probe=skip ;;
       *)
@@ -49,9 +52,16 @@ while read -r _state _recvq _sendq local _peer rest; do
           out=$(curl -s -m 2 -o "$dir/$i.body" -w '%{http_code} %{content_type}' "http://$urlhost:$port/" 2>/dev/null)
           rc=$?
           status=${D}{out%% *}
+          http_rc=$rc
+          if [ "$status" = 000 ]; then
+            out=$(curl -ks -m 2 -o "$dir/$i.body" -w '%{http_code} %{content_type}' "https://$urlhost:$port/" 2>/dev/null)
+            rc=$?
+            status=${D}{out%% *}
+            protocol=https
+          fi
           ctype=${D}{out#* }
           if [ "$status" = 000 ] || [ -z "$status" ]; then
-            if [ "$rc" = 28 ]; then probe=pending; else probe=none; fi
+            if [ "$rc" = 28 ] || [ "$http_rc" = 28 ]; then probe=pending; else probe=none; fi
           else
             case "$ctype" in
               *html*)
@@ -64,7 +74,7 @@ while read -r _state _recvq _sendq local _peer rest; do
         fi
         ;;
     esac
-    printf 'P\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$port" "$host" "$pid" "$cwd" "$cmd" "$probe" "$title" > "$dir/$i.out"
+    printf 'P\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$port" "$host" "$pid" "$cwd" "$cmd" "$probe" "$title" "$protocol" "$agent" > "$dir/$i.out"
   ) &
 done < "$dir/ss"
 wait
@@ -82,6 +92,8 @@ export interface ScanLine {
   command: string | null;
   probe: Probe;
   title: string | null;
+  protocol: "http" | "https";
+  agentId: string | null;
 }
 
 export function parseScanOutput(text: string): { serverId: string | null; lines: ScanLine[] } {
@@ -103,6 +115,8 @@ export function parseScanOutput(text: string): { serverId: string | null; lines:
         command: fields[5]?.trim() || null,
         probe: fields[6] as Probe,
         title: decodeEntities(fields[7]?.trim() ?? "") || null,
+        protocol: fields[8] === "https" ? "https" : "http",
+        agentId: fields[9] || null,
       });
     }
   }
@@ -115,6 +129,7 @@ const NON_WEB_PORTS = new Set([22, 25, 53, 111, 631, 3306, 5432, 6379, 11211, 27
 export interface ProbeResult {
   probe: Probe;
   title: string | null;
+  protocol: "http" | "https";
 }
 
 const UNREACHABLE_RETRY_MS = 60_000;
@@ -143,7 +158,10 @@ export class PortScanner {
     }
   }
 
-  async scan(target: string): Promise<{ serverId: string | null; ports: DetectedPort[] }> {
+  async scan(target: string, refresh = false): Promise<{ serverId: string | null; ports: DetectedPort[]; otherPorts: DetectedPort[] }> {
+    if (refresh) {
+      for (const key of this.probes.keys()) if (key.startsWith(`${target}|`)) this.probes.delete(key);
+    }
     const known = [...this.probes.keys()]
       .filter((key) => key.startsWith(`${target}|`))
       .map((key) => key.slice(target.length + 1));
@@ -158,26 +176,29 @@ export class PortScanner {
 
     const seen = new Set<string>();
     const ports = new Map<number, DetectedPort>();
+    const otherPorts = new Map<number, DetectedPort>();
     for (const line of lines) {
       const key = `${line.port}:${line.pid ?? ""}`;
       seen.add(key);
-      let result: ProbeResult = { probe: line.probe, title: line.title };
+      let result: ProbeResult = { probe: line.probe, title: line.title, protocol: line.protocol };
       if (line.probe === "skip") {
-        result = this.probes.get(`${target}|${key}`) ?? { probe: "pending", title: null };
+        result = this.probes.get(`${target}|${key}`) ?? { probe: "pending", title: null, protocol: "http" };
       } else if (line.probe === "html" || line.probe === "other" || line.probe === "none") {
         this.probes.set(`${target}|${key}`, result);
       }
-      if (!isWeb(result.probe, line.port, line.pid)) continue;
-      const existing = ports.get(line.port);
+      const collection = isWeb(result.probe, line.port, line.pid) ? ports : otherPorts;
+      const existing = collection.get(line.port);
       // A port bound on both IPv4 and IPv6 appears twice; either address reaches it, IPv4 is simpler.
       if (existing && existing.host.includes(".")) continue;
-      ports.set(line.port, {
+      collection.set(line.port, {
         port: line.port,
         host: line.host,
         pid: line.pid,
         command: line.command,
         cwd: line.cwd,
         title: result.title,
+        protocol: result.probe === "html" || result.probe === "other" ? result.protocol : null,
+        agentId: line.agentId,
       });
     }
     for (const key of this.probes.keys()) {
@@ -185,7 +206,8 @@ export class PortScanner {
         this.probes.delete(key);
       }
     }
-    return { serverId, ports: [...ports.values()].sort((a, b) => a.port - b.port) };
+    for (const port of ports.keys()) otherPorts.delete(port);
+    return { serverId, ports: [...ports.values()].sort((a, b) => a.port - b.port), otherPorts: [...otherPorts.values()].sort((a, b) => a.port - b.port) };
   }
 }
 

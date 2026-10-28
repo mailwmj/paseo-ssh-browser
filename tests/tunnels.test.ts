@@ -97,6 +97,35 @@ test("closing a forward stops ssh and frees the local port", async () => {
   assert.equal(await isLocalPortFree(forward.localPort), true);
 });
 
+test("an unexpected SSH exit is visible until reconnected or dismissed", async () => {
+  let child: ReturnType<ReturnType<typeof spawnFake>> | undefined;
+  const tunnels = new TunnelManager((args) => (child = spawnFake()(args)));
+  try {
+    const forward = await tunnels.open("devbox", "127.0.0.1", 47836);
+    const stopped = new Promise<void>((resolve) => child!.once("close", () => resolve()));
+    child!.kill();
+    await stopped;
+    assert.deepEqual(tunnels.list(), []);
+    assert.deepEqual(tunnels.listDisconnected(), [forward]);
+    const reconnected = await tunnels.open("devbox", "127.0.0.1", 47836);
+    assert.equal(reconnected.remotePort, forward.remotePort);
+    assert.deepEqual(tunnels.listDisconnected(), []);
+    tunnels.close("devbox", 47836);
+    assert.deepEqual(tunnels.listDisconnected(), []);
+  } finally { tunnels.closeAll(); }
+});
+
+test("reports an SSH connection failure to the remote service without marking the tunnel disconnected", async () => {
+  let child: ReturnType<ReturnType<typeof spawnFake>> | undefined;
+  const tunnels = new TunnelManager((args) => (child = spawnFake()(args)));
+  try {
+    await tunnels.open("devbox", "127.0.0.1", 47837);
+    child!.stderr!.emit("data", "channel 2: open failed: connect failed: Connection refused\n");
+    assert.match(tunnels.list()[0].connectionError!, /Connection refused/);
+    assert.deepEqual(tunnels.listDisconnected(), []);
+  } finally { tunnels.closeAll(); }
+});
+
 // End to end through the real ssh binary, against this machine. Needs passwordless `ssh localhost`.
 const sshLocalhost =
   spawnSync("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "localhost", "true"]).status === 0;
@@ -154,7 +183,9 @@ test("real ssh: tool request and desktop handler return the remote marker on an 
     assert.ok(serverId);
     const unused = async (): Promise<never> => { throw new Error("unused"); };
     const local = buildLocalApi({ scan: ({ target }) => scanner.scan(target), open: ({ target, remoteHost, remotePort }) => tunnels.open(target, remoteHost, remotePort),
-      close: unused, forwards: unused, targets: unused, readSettings: unused, writeSettings: unused });
+      close: unused, forwards: unused, targets: unused, readSettings: unused, writeSettings: unused,
+      readRecent: async () => ({ status: "ready", revision: "r", values: { pages: [] } }),
+      writeRecent: async ({ values }) => ({ status: "saved", revision: "r2", values }) });
     const browser = new AutomaticBrowser();
     const tool = openRemoteUrlTool(broker);
     const remoteUrl = `http://localhost:${remotePort}/dashboard?tab=home#details`;

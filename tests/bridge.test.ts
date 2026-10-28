@@ -15,6 +15,8 @@ function calls(overrides: Partial<RpcCalls> = {}): RpcCalls {
     targets: unused,
     readSettings: unused,
     writeSettings: unused,
+    readRecent: unused,
+    writeRecent: unused,
     ...overrides,
   };
 }

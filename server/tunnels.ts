@@ -22,6 +22,7 @@ interface Tunnel {
 export class TunnelManager {
   private readonly tunnels = new Map<string, Tunnel>();
   private readonly opening = new Map<string, Promise<Forward>>();
+  private readonly disconnected = new Map<string, Forward>();
   private stopped = false;
 
   constructor(private readonly spawnProcess: SpawnSsh = spawnSsh) {}
@@ -29,6 +30,8 @@ export class TunnelManager {
   list(): Forward[] {
     return [...this.tunnels.values()].map((tunnel) => tunnel.forward);
   }
+
+  listDisconnected(): Forward[] { return [...this.disconnected.values()]; }
 
   async open(target: string, remoteHost: string, remotePort: number): Promise<Forward> {
     if (this.stopped) throw new Error("SSH Browser stopped");
@@ -76,20 +79,38 @@ export class TunnelManager {
     };
     const tunnel: Tunnel = { forward, child, ready: waitUntilReady(child) };
     this.tunnels.set(key, tunnel);
+    let established = false;
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      if (!established) return;
+      stderr = (stderr + chunk.toString()).slice(-4096);
+      const lines = stderr.split(/\r?\n/);
+      stderr = lines.pop() ?? "";
+      const failure = lines.find((line) => /connect failed:/i.test(line));
+      if (failure) forward.connectionError = failure.slice(0, 300);
+    });
     child.on("close", () => {
-      if (this.tunnels.get(key) === tunnel) this.tunnels.delete(key);
+      if (this.tunnels.get(key) === tunnel) {
+        this.tunnels.delete(key);
+        if (established && !this.stopped) this.disconnected.set(key, forward);
+      }
     });
     try {
       await tunnel.ready;
+      established = true;
+      this.disconnected.delete(key);
     } catch (error) {
       if (this.tunnels.get(key) === tunnel) this.tunnels.delete(key);
       child.kill();
-      throw error;
+      throw new Error(`SSH forward could not be established: ${error instanceof Error ? error.message : String(error)}`);
     }
     return forward;
   }
 
   close(target: string, remotePort: number): void {
+    for (const [key, forward] of this.disconnected) {
+      if (forward.target === target && forward.remotePort === remotePort) this.disconnected.delete(key);
+    }
     for (const [key, tunnel] of this.tunnels) {
       if (tunnel.forward.target !== target || tunnel.forward.remotePort !== remotePort) continue;
       this.tunnels.delete(key);
@@ -101,6 +122,7 @@ export class TunnelManager {
     this.stopped = true;
     for (const tunnel of this.tunnels.values()) tunnel.child.kill();
     this.tunnels.clear();
+    this.disconnected.clear();
   }
 }
 

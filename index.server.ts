@@ -5,10 +5,11 @@ import { TunnelManager } from "./server/tunnels";
 import { OpenRequests } from "./server/open-requests";
 import { openRemoteUrlTool } from "./server/open-tool";
 import { authorizeOpenRpc, disconnectOpenRpc, finishOpenRpc, pollOpenRpc } from "./shared/remote-url";
-import { closeRpc, forwardsRpc, openRpc, scanRpc, targetsRpc, targetsSettings } from "./shared/ports";
+import { closeRpc, forwardsRpc, openRpc, scanRpc, targetsRpc, targetsSettings, recentSettings } from "./shared/ports";
 
 export default function contribute(server: PluginServerContext) {
   const settings = server.registerSettings(targetsSettings);
+  server.registerSettings(recentSettings);
   const scanner = new PortScanner(sshExec);
   const tunnels = new TunnelManager();
   const requests = new OpenRequests();
@@ -26,7 +27,7 @@ export default function contribute(server: PluginServerContext) {
     return {};
   });
 
-  server.handle(scanRpc, ({ target }) => scanner.scan(target));
+  server.handle(scanRpc, ({ target, refresh }) => scanner.scan(target, refresh));
   server.handle(targetsRpc, async () => {
     const state = await settings.read();
     const targets = state.status === "ready" ? state.values.targets : [];
@@ -36,7 +37,7 @@ export default function contribute(server: PluginServerContext) {
       ),
     };
   });
-  server.handle(forwardsRpc, () => ({ forwards: tunnels.list() }));
+  server.handle(forwardsRpc, () => ({ forwards: tunnels.list(), disconnected: tunnels.listDisconnected() }));
   server.handle(openRpc, ({ target, remoteHost, remotePort }) =>
     tunnels.open(target, remoteHost, remotePort),
   );

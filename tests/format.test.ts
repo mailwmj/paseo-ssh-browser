@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { forwardedUrl } from "../shared/remote-url";
 import {
   attributePorts,
   groupPortsByWorkspace,
@@ -173,13 +174,18 @@ test("labels a workspace by project, adding the workspace when it differs", () =
 });
 
 test("reads a port, a localhost address, or a URL from the address field", () => {
-  assert.deepEqual(parseAddress("3000"), { port: 3000, path: "/" });
+  assert.deepEqual(parseAddress("3000"), { port: 3000, remoteHost: "127.0.0.1", url: "http://localhost:3000/" });
   assert.deepEqual(parseAddress(" localhost:4192/agent?view=architecture "), {
     port: 4192,
-    path: "/agent?view=architecture",
+    remoteHost: "127.0.0.1",
+    url: "http://localhost:4192/agent?view=architecture",
   });
-  assert.deepEqual(parseAddress("http://127.0.0.1:8765/upload.html"), { port: 8765, path: "/upload.html" });
-  assert.deepEqual(parseAddress("[::1]:5173"), { port: 5173, path: "/" });
+  assert.deepEqual(parseAddress("http://127.0.0.1:8765/upload.html"), { port: 8765, remoteHost: "127.0.0.1", url: "http://127.0.0.1:8765/upload.html" });
+  assert.deepEqual(parseAddress("[::1]:5173"), { port: 5173, remoteHost: "::1", url: "http://[::1]:5173/" });
+  assert.deepEqual(parseAddress("https://localhost:3000?x=1#top"), { port: 3000, remoteHost: "127.0.0.1", url: "https://localhost:3000/?x=1#top" });
+  assert.equal(forwardedUrl(parseAddress("https://localhost:3000/dashboard?x=1#top")!.url, 44001), "https://127.0.0.1:44001/dashboard?x=1#top");
+  assert.deepEqual(parseAddress("https://localhost"), { port: 443, remoteHost: "127.0.0.1", url: "https://localhost/" });
+  assert.equal(parseAddress("https://user:secret@localhost:3000"), null);
   assert.equal(parseAddress("example.com:80"), null);
   assert.equal(parseAddress("70000"), null);
   assert.equal(parseAddress(""), null);

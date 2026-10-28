@@ -1,4 +1,6 @@
-import { sshTarget, type DetectedPort } from "../shared/ports";
+import { sshTarget, detectedPort, type DetectedPort } from "../shared/ports";
+import type { z } from "zod";
+import { parseRemoteUrl } from "../shared/remote-url";
 
 // The workspace whose directory most specifically contains the process's working directory.
 export function pickWorkspace(
@@ -137,13 +139,15 @@ export interface PortRow {
   label: string | null;
   // What started it, shortened: "vite --port 5173".
   command: string | null;
+  protocol: "http" | "https" | null;
+  agentId: string | null;
   // The workspace that runs it: a running paseo.json service, else the workspace containing the
   // process's working directory. Null for system services and other tools.
   workspaceId: string | null;
 }
 
 export function attributePorts(
-  ports: readonly DetectedPort[],
+  ports: readonly z.input<typeof detectedPort>[],
   entries: readonly WorkspaceEntry[],
 ): PortRow[] {
   const services = servicesByPort(entries);
@@ -156,6 +160,8 @@ export function attributePorts(
       cwd: port.cwd,
       label: service?.name ?? describePort(port),
       command: shortCommand(port.command),
+      protocol: port.protocol ?? null,
+      agentId: port.agentId ?? null,
       workspaceId: service?.workspaceId ?? pickWorkspace(directories, port.cwd),
     };
   });
@@ -181,12 +187,14 @@ export function groupPortsByWorkspace<T extends { workspaceId: string | null }>(
 }
 
 // What the address field accepts: "3000", "localhost:3000/path", or a full http://127.0.0.1 URL.
-export function parseAddress(text: string): { port: number; path: string } | null {
-  const match = text
-    .trim()
-    .match(/^(?:https?:\/\/)?(?:(?:localhost|127\.0\.0\.1|\[::1\])?:)?(\d{1,5})(\/.*)?$/i);
-  if (!match) return null;
-  const port = Number(match[1]);
-  if (port < 1 || port > 65535) return null;
-  return { port, path: match[2] ?? "/" };
+export function parseAddress(text: string): { port: number; remoteHost: string; url: string } | null {
+  let input = text.trim();
+  if (/^\d+(?:[/?#]|$)/.test(input)) input = `localhost:${input}`;
+  if (!/^[a-z][a-z\d+.-]*:\/\//i.test(input)) input = `http://${input}`;
+  try {
+    const remote = parseRemoteUrl(input);
+    return { port: remote.remotePort, remoteHost: remote.remoteHost, url: remote.url };
+  } catch {
+    return null;
+  }
 }

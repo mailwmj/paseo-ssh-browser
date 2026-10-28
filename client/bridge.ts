@@ -7,10 +7,11 @@ import {
   scanRpc,
   targetsRpc,
   targetsSettings,
+  recentSettings,
   type Forward,
 } from "../shared/ports";
 
-const BRIDGE_VERSION = 3;
+const BRIDGE_VERSION = 5;
 
 // Tunnels have to start on the computer running the app, so every surface, whichever host's copy
 // of the plugin renders it, calls the copy installed on this computer's own Paseo host. Paseo runs
@@ -24,9 +25,14 @@ export interface LocalApi {
   close(input: RpcInput<typeof closeRpc>): Promise<RpcOutput<typeof closeRpc>>;
   targets(): Promise<RpcOutput<typeof targetsRpc>>;
   updateTargets(change: (targets: string[]) => string[]): Promise<void>;
+  recent(): Promise<RecentPage[]>;
+  updateRecent(change: (pages: RecentPage[]) => RecentPage[]): Promise<void>;
 }
 
+export type RecentPage = { serverId: string; workspaceId: string; url: string };
+
 const targetSettings = settingsRpc(targetsSettings.id);
+const recentRpc = settingsRpc(recentSettings.id);
 
 export interface RpcCalls {
   scan: (input: RpcInput<typeof scanRpc>) => Promise<RpcOutput<typeof scanRpc>>;
@@ -36,6 +42,8 @@ export interface RpcCalls {
   targets: (input: RpcInput<typeof targetsRpc>) => Promise<RpcOutput<typeof targetsRpc>>;
   readSettings: (input: RpcInput<typeof targetSettings.read>) => Promise<RpcOutput<typeof targetSettings.read>>;
   writeSettings: (input: RpcInput<typeof targetSettings.write>) => Promise<RpcOutput<typeof targetSettings.write>>;
+  readRecent: (input: RpcInput<typeof recentRpc.read>) => Promise<RpcOutput<typeof recentRpc.read>>;
+  writeRecent: (input: RpcInput<typeof recentRpc.write>) => Promise<RpcOutput<typeof recentRpc.write>>;
 }
 
 export const RPCS = {
@@ -46,6 +54,8 @@ export const RPCS = {
   targets: targetsRpc,
   readSettings: targetSettings.read,
   writeSettings: targetSettings.write,
+  readRecent: recentRpc.read,
+  writeRecent: recentRpc.write,
 } as const;
 
 export function buildLocalApi(calls: RpcCalls): LocalApi {
@@ -56,6 +66,22 @@ export function buildLocalApi(calls: RpcCalls): LocalApi {
     open: calls.open,
     close: calls.close,
     targets: () => calls.targets({}),
+    async recent() {
+      const current = await calls.readRecent({});
+      if (current.status !== "ready") throw new Error(current.error);
+      return recentSettings.schema.parse(current.values).pages;
+    },
+    async updateRecent(change) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const current = await calls.readRecent({});
+        if (current.status !== "ready") throw new Error(current.error);
+        const pages = recentSettings.schema.parse(current.values).pages;
+        const result = await calls.writeRecent({ revision: current.revision, values: { pages: change(pages).slice(0, 100) } });
+        if (result.status === "saved") return;
+        if (result.status === "invalid") throw new Error(result.error);
+      }
+      throw new Error("Recent pages changed while saving; try again");
+    },
     // Read, change, and write against the read revision; another client's save in between is retried once.
     async updateTargets(change) {
       for (let attempt = 0; attempt < 2; attempt++) {

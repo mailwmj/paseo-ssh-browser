@@ -2,6 +2,7 @@ import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { forwardedUrl, parseRemoteUrl, type OpenRequest, type OpenResult } from "../shared/remote-url";
 import type { LocalApi } from "./bridge";
 import type { HostRegistry } from "./format";
+import { rememberPage } from "./recent";
 
 type OpenBrowser = NonNullable<NonNullable<PluginSurfaceProps["navigation"]>["openBrowser"]>;
 interface NavigationJob {
@@ -90,6 +91,8 @@ export class AutomaticBrowser {
         if (this.navigators.has(request.workspaceId)) job.run(this.navigators.get(request.workspaceId));
       } catch (error) { fail(error); }
     });
+    void rememberPage(api, { serverId: request.serverId, workspaceId: request.workspaceId, url: remote.url })
+      .catch((error) => console.warn("[ssh-browser] Could not save recent page", error));
     return {
       requestId: request.requestId, serverId: request.serverId, workspaceId: request.workspaceId,
       remoteUrl: request.remoteUrl, localUrl, localPort: forward.localPort, status: "navigation_requested",

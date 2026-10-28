@@ -6,8 +6,10 @@ Install the plugin on two Paseo hosts: the one on the computer you sit at, which
 
 Agents also receive an `open_remote_url` tool. After starting a remote web server, the agent can call it to establish the tunnel and open and focus the page in the same remote workspace without a manual panel action. The agent can then inspect the returned local URL with Paseo's browser tools. The beta API leaves an additional SSH Browser panel tab open. The tool reports navigation requested; page loading is checked separately.
 
-- **In a workspace**, choose **+ → SSH Browser**. It lists the web servers of that workspace, a running `paseo.json` service or a process working inside the workspace directory, and opens the page in a browser tab of the workspace. When the workspace has exactly one, it opens on its own. The address field takes a port or a localhost address with a path.
+- **In a workspace**, choose **+ → SSH Browser**. It lists the web servers of that workspace, a running `paseo.json` service or a process working inside the workspace directory, and opens the page in a browser tab of the workspace. When the workspace has exactly one, it opens on its own. The address field takes a port or a localhost address with a path. Expand **Other listening ports** to open a port that was not identified as a web page, using HTTP or HTTPS.
 - **In the sidebar**, **SSH Browser** shows every web page on each SSH host as a card, pages of workspaces first. Select a card to open it, or use its browser action to open it in the system browser. Forwarded cards show their local address and an action to stop forwarding.
+
+Cards show remote and local ports, and offer reconnect if an SSH forward exits unexpectedly. A connection failure reported by SSH is shown as the last failed connection; it does not establish whether the page subsequently loaded. When a listening process carries a recognized Paseo Agent ID, its Agent name and stopped state are shown. Each workspace keeps its five most recently opened remote addresses, including paths, queries and fragments, with a clear action.
 
 Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local port matches the remote one when it is free, so cookies and OAuth callbacks keep working. An unplug button stops a forward.
 
@@ -22,9 +24,11 @@ Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local p
 
 Agent previews accept HTTP/HTTPS URLs on `localhost`, `127.0.0.1`, and `[::1]`, preserving paths, query parameters, fragments, and protocol. HTTPS certificates must be trusted by the desktop browser. With no eligible Desktop or more than one, the tool returns an error rather than choosing a computer. Keep only the intended desktop/window connected to that remote host for agent previews.
 
+The workspace address field also accepts HTTPS URLs. Manual and agent previews use `127.0.0.1` locally, so the certificate must be valid for that address as well as trusted by the desktop browser.
+
 ## What it reads and runs
 
-While a surface is open, the copy on your computer runs one SSH command every 10 seconds that reads the remote listening sockets, the owning process's command line and working directory, and the Paseo server ID in `~/.paseo/server-id`. Each new listening process gets one `GET /` from the remote host itself to check that it serves HTML; one that has not answered yet is checked again on the next refresh. Forwards bind to localhost only and stop when you unplug them or when the plugin stops.
+While a surface is open, the copy on your computer runs one SSH command every 10 seconds that reads the remote listening sockets, the owning process's command line and working directory, its `PASEO_AGENT_ID` environment variable, and the Paseo server ID in `~/.paseo/server-id`. Each new listening process receives an HTTP `GET /` from the remote host; if it fails, HTTPS is also tried without verifying its certificate to identify the service. A listener that has not answered yet is checked again on the next refresh. Forwards bind to localhost only and stop when you unplug them or when the plugin stops. Recent addresses are stored in the local Paseo host's plugin settings and can contain sensitive query parameters; clear them from the workspace panel when no longer needed.
 
 The desktop entry also waits for agent preview requests over plugin RPC, even with no panel open. For each request it verifies the SSH destination's Paseo ID and establishes or reuses a forward. An occupied local port is replaced with an available one. Agent preview URLs use the IPv4 loopback address bound by SSH, and the tool waits for SSH to confirm setup before navigating. Cancellation and timeout discard pending navigation without closing tunnels another preview may use.
 
