@@ -1,40 +1,18 @@
-import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { forwardedUrl, parseRemoteUrl, type OpenRequest, type OpenResult } from "../shared/remote-url";
 import type { LocalApi } from "./bridge";
 import type { HostRegistry } from "./format";
 import { rememberPage } from "./recent";
 
-type OpenBrowser = NonNullable<NonNullable<PluginSurfaceProps["navigation"]>["openBrowser"]>;
-interface NavigationJob {
-  run(openBrowser: OpenBrowser | undefined): void;
-}
-
-// Navigation belongs to the selected remote plugin's panel, in this desktop's JS realm.
-// Keeping requests in this entry's closure prevents another host/copy from consuming them.
+// The desktop prepares the tunnel without navigating or changing the active workspace.
 export class AutomaticBrowser {
-  private readonly navigators = new Map<string, OpenBrowser | undefined>();
-  private readonly jobs = new Map<string, Set<NavigationJob>>();
-  private readonly requestedWorkspaces = new Set<string>();
-
-  hasRequested(workspaceId: string): boolean {
-    return this.requestedWorkspaces.has(workspaceId);
-  }
-
-  attach(workspaceId: string, openBrowser: OpenBrowser | undefined): () => void {
-    this.navigators.set(workspaceId, openBrowser);
-    for (const job of this.jobs.get(workspaceId) ?? []) job.run(openBrowser);
-    return () => this.navigators.delete(workspaceId);
-  }
-
   async open({
-    request, api, target, signal, authorize, openPanel,
+    request, api, target, signal, authorize,
   }: {
     request: OpenRequest;
     api: LocalApi;
     target: string;
     signal: AbortSignal;
     authorize(): Promise<boolean>;
-    openPanel(): void;
   }): Promise<OpenResult> {
     const check = () => {
       if (signal.aborted) throw new Error("Remote page request canceled");
@@ -55,47 +33,11 @@ export class AutomaticBrowser {
     const forward = await api.open({ target, remoteHost: remote.remoteHost, remotePort: remote.remotePort });
     await requireActive();
     const localUrl = forwardedUrl(request.remoteUrl, forward.localPort);
-    this.requestedWorkspaces.add(request.workspaceId);
-
-    await new Promise<void>((resolve, reject) => {
-      let running = false;
-      const jobs = this.jobs.get(request.workspaceId) ?? new Set<NavigationJob>();
-      this.jobs.set(request.workspaceId, jobs);
-      const cleanup = () => {
-        clearTimeout(timer);
-        signal.removeEventListener("abort", onAbort);
-        jobs.delete(job);
-        if (jobs.size === 0) this.jobs.delete(request.workspaceId);
-      };
-      const fail = (error: unknown) => { cleanup(); reject(error); };
-      const onAbort = () => fail(new Error("Remote page request canceled"));
-      const timer = setTimeout(() => fail(new Error("Workspace browser panel did not become available before the request expired")), Math.max(0, request.expiresAt - Date.now()));
-      const job: NavigationJob = {
-        run: (openBrowser) => {
-          if (running) return;
-          running = true;
-          void (async () => {
-            if (!openBrowser) throw new Error("Opening a workspace browser requires Paseo Desktop");
-            await requireActive();
-            openBrowser({ url: localUrl, workspaceId: request.workspaceId, serverId: request.serverId });
-            cleanup();
-            resolve();
-          })().catch(fail);
-        },
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-      jobs.add(job);
-      try {
-        check();
-        openPanel();
-        if (this.navigators.has(request.workspaceId)) job.run(this.navigators.get(request.workspaceId));
-      } catch (error) { fail(error); }
-    });
     void rememberPage(api, { serverId: request.serverId, workspaceId: request.workspaceId, url: remote.url })
       .catch((error) => console.warn("[ssh-browser] Could not save recent page", error));
     return {
       requestId: request.requestId, serverId: request.serverId, workspaceId: request.workspaceId,
-      remoteUrl: request.remoteUrl, localUrl, localPort: forward.localPort, status: "navigation_requested",
+      remoteUrl: request.remoteUrl, localUrl, localPort: forward.localPort, status: "tunnel_ready",
     };
   }
 }

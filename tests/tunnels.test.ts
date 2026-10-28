@@ -169,7 +169,7 @@ test("real ssh: detects a remote page and serves it, WebSocket upgrade included"
   }
 });
 
-test("real ssh: tool request and desktop handler return the remote marker on an alternate port, then reuse it (navigation simulated)", { skip: !sshLocalhost }, async () => {
+test("real ssh: tool request and desktop handler return the remote marker on an alternate port, then reuse it", { skip: !sshLocalhost }, async () => {
   const page = http.createServer((req, res) => {
     res.setHeader("content-type", "text/html");
     res.end(`<title>SSH Browser integration marker</title><p>REMOTE_UNIQUE_MARKER ${req.url}</p>`);
@@ -195,15 +195,13 @@ test("real ssh: tool request and desktop handler return the remote marker on an 
       paseo: { hosts: { list: async () => ({ self: { serverId, label: "Remote" }, hosts: [] }) } } as unknown as AgentToolContext["paseo"],
       signal: new AbortController().signal,
     };
-    const navigations: { url: string; workspaceId: string; serverId?: string }[] = [];
     let previousPort: number | undefined;
     for (let i = 0; i < 2; i++) {
       const poll = broker.poll("test-desktop");
       const output = tool.execute({ url: remoteUrl }, context);
       const { requests: [request] } = await poll;
       const result = await browser.open({ request, api: local, target: "localhost", signal: context.signal,
-        authorize: async () => broker.active("test-desktop", request.requestId),
-        openPanel: () => { browser.attach(request.workspaceId, (input) => navigations.push(input)); } });
+        authorize: async () => broker.active("test-desktop", request.requestId) });
       broker.finish({ clientId: "test-desktop", requestId: request.requestId, outcome: { ok: true, result } });
       assert.deepEqual((await output).structuredContent, result);
       assert.notEqual(result.localPort, remotePort);
@@ -213,8 +211,6 @@ test("real ssh: tool request and desktop handler return the remote marker on an 
       assert.match(await (await fetch(result.localUrl)).text(), /REMOTE_UNIQUE_MARKER \/dashboard\?tab=home/);
     }
     assert.equal(tunnels.list().length, 1);
-    assert.equal(navigations.length, 2);
-    assert.ok(navigations.every((n) => n.workspaceId === "actual-remote-workspace" && n.serverId === serverId));
   } finally {
     broker.stop(); tunnels.closeAll(); page.close();
   }

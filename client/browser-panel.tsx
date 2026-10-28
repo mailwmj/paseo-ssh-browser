@@ -21,7 +21,7 @@ type Styles = ReturnType<typeof createStyles>;
 
 const tabSchema = z.object({ autoOpened: z.boolean() });
 
-export function BrowserPanel(props: PluginWorkspacePanelProps & { suppressAutoOpen?: () => boolean }) {
+export function BrowserPanel(props: PluginWorkspacePanelProps) {
   const { theme, layout, host } = props;
   const { t } = useTranslation(messages);
   const styles = useMemo(() => createStyles(theme, layout.compact), [theme, layout.compact]);
@@ -48,8 +48,7 @@ function Pages({
   tab,
   target,
   styles,
-  suppressAutoOpen,
-}: PluginWorkspacePanelProps & { target: string; styles: Styles; suppressAutoOpen?: () => boolean }) {
+}: PluginWorkspacePanelProps & { target: string; styles: Styles }) {
   const { t } = useTranslation(messages);
   const toast = useToast();
   const api = useApi();
@@ -69,10 +68,10 @@ function Pages({
   // The first time this tab finds exactly one page of its workspace, open it without being asked.
   const only = rows.length === 1 ? rows[0] : null;
   useEffect(() => {
-    if (suppressAutoOpen?.() || state.autoOpened || !ports.loaded || !only || only.forward || only.disconnected) return;
+    if (state.autoOpened || !ports.loaded || !only || only.forward || only.disconnected) return;
     setState({ autoOpened: true });
     void open(only);
-  }, [suppressAutoOpen, state.autoOpened, ports.loaded, only?.port]);
+  }, [state.autoOpened, ports.loaded, only?.port]);
 
   const submit = () => {
     const parsed = parseAddress(address);
