@@ -135,6 +135,8 @@ export function servicesByPort(
 export interface PortRow {
   port: number;
   host: string;
+  pid: number | null;
+  startedAt: string | null;
   cwd: string | null;
   label: string | null;
   // What started it, shortened: "vite --port 5173".
@@ -157,6 +159,8 @@ export function attributePorts(
     return {
       port: port.port,
       host: port.host,
+      pid: port.pid,
+      startedAt: port.startedAt ?? null,
       cwd: port.cwd,
       label: service?.name ?? describePort(port),
       command: shortCommand(port.command),

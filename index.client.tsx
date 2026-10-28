@@ -70,6 +70,7 @@ export default function contribute(client: PluginClientContext) {
       unpublish = publishLocalApi(
         buildLocalApi({
           scan: (input) => client.rpc(RPCS.scan, input),
+          stopService: (input) => client.rpc(RPCS.stopService, input),
           forwards: (input) => client.rpc(RPCS.forwards, input),
           open: (input) => client.rpc(RPCS.open, input),
           close: (input) => client.rpc(RPCS.close, input),

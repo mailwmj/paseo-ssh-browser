@@ -19,6 +19,7 @@ export interface Row extends PortRow {
 export function useApi(): LocalApi | null {
   const local = useLocalApi();
   const scan = useRpc(RPCS.scan);
+  const stopService = useRpc(RPCS.stopService);
   const forwards = useRpc(RPCS.forwards);
   const open = useRpc(RPCS.open);
   const close = useRpc(RPCS.close);
@@ -36,10 +37,10 @@ export function useApi(): LocalApi | null {
   const writeFolder = useRpc(RPCS.writeReceiveFolder);
   const own = useMemo(
     () => buildLocalApi({
-      scan, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent,
+      scan, stopService, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent,
       transfer: { send, receive, list, cancel, folder, readFolder, writeFolder },
     }),
-    [scan, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent, send, receive, list, cancel, folder, readFolder, writeFolder],
+    [scan, stopService, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent, send, receive, list, cancel, folder, readFolder, writeFolder],
   );
   return local ?? (readHostRegistry().local.length === 0 ? own : null);
 }
@@ -108,7 +109,7 @@ export function useHostPorts({
     }
     for (const item of forwards.data?.disconnected ?? []) {
       if (item.target !== target || byPort.has(item.remotePort) || (scanned.data?.otherPorts ?? []).some((port) => port.port === item.remotePort)) continue;
-      byPort.set(item.remotePort, { port: item.remotePort, host: item.remoteHost, cwd: null, label: null, command: null, protocol: null, agentId: null, workspaceId: null, forward: undefined, disconnected: item });
+      byPort.set(item.remotePort, { port: item.remotePort, host: item.remoteHost, pid: null, startedAt: null, cwd: null, label: null, command: null, protocol: null, agentId: null, workspaceId: null, forward: undefined, disconnected: item });
     }
     // Forwards opened by address stay listed even when the scan does not show them.
     for (const item of own) {
@@ -116,6 +117,8 @@ export function useHostPorts({
         byPort.set(item.remotePort, {
           port: item.remotePort,
           host: item.remoteHost,
+          pid: null,
+          startedAt: null,
           cwd: null,
           label: null,
           command: null,
@@ -137,6 +140,18 @@ export function useHostPorts({
     () => new Map((workspaces.data ?? []).map((entry) => [entry.id, entry])),
     [workspaces.data],
   );
+
+  async function stop(row: Row): Promise<void> {
+    if (!api || row.pid === null || row.startedAt === null) return;
+    try {
+      await api.stopService({ target, port: row.port, pid: row.pid, startedAt: row.startedAt });
+      await api.close({ target, remotePort: row.port });
+    } finally {
+      const data = await api.scan({ target, refresh: true });
+      queryClient.setQueryData(["scan", target], data);
+      await queryClient.invalidateQueries({ queryKey: ["forwards"] });
+    }
+  }
 
   async function open(
     row: Pick<Row, "port" | "host" | "cwd" | "workspaceId"> & { protocol?: "http" | "https" | null },
@@ -198,6 +213,7 @@ export function useHostPorts({
       : "loading";
 
   return {
+    stop,
     rows,
     otherRows,
     workspacesById,

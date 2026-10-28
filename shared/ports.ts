@@ -29,6 +29,7 @@ export const detectedPort = z.object({
   port: remotePort,
   host: remoteHost,
   pid: z.number().int().nullable(),
+  startedAt: z.string().regex(/^\d+$/).nullable().default(null),
   command: z.string().nullable(),
   cwd: z.string().nullable(),
   title: z.string().nullable(),
@@ -73,6 +74,12 @@ export const openRpc = defineRpc({
 export const closeRpc = defineRpc({
   name: "ports.close",
   input: z.object({ target: sshTarget, remotePort }),
+  output: z.object({}),
+});
+
+export const stopServiceRpc = defineRpc({
+  name: "ports.stop-service",
+  input: z.object({ target: sshTarget, port: remotePort, pid: z.number().int().positive(), startedAt: z.string().regex(/^\d+$/) }),
   output: z.object({}),
 });
 

@@ -3,13 +3,14 @@ import path from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { recentFiles } from "./server/recent-files";
 import { PortScanner } from "./server/scan";
+import { stopService } from "./server/stop-service";
 import { sshExec } from "./server/ssh";
 import { TransferManager } from "./server/transfer";
 import { TunnelManager } from "./server/tunnels";
 import { OpenRequests } from "./server/open-requests";
 import { openRemoteUrlTool } from "./server/open-tool";
 import { authorizeOpenRpc, disconnectOpenRpc, finishOpenRpc, pollOpenRpc } from "./shared/remote-url";
-import { closeRpc, forwardsRpc, openRpc, scanRpc, targetsRpc, targetsSettings, recentSettings } from "./shared/ports";
+import { closeRpc, forwardsRpc, openRpc, scanRpc, stopServiceRpc, targetsRpc, targetsSettings, recentSettings } from "./shared/ports";
 import {
   cancelTransferRpc, receiveFolderRpc, receiveRpc, receiveSettings, recentFilesRpc, sendRpc, transfersRpc,
 } from "./shared/transfer";
@@ -40,6 +41,7 @@ export default function contribute(server: PluginServerContext) {
     return {};
   });
 
+  server.handle(stopServiceRpc, (input) => stopService(sshExec, input));
   server.handle(scanRpc, ({ target, refresh }) => scanner.scan(target, refresh));
   server.handle(targetsRpc, async () => {
     const state = await settings.read();

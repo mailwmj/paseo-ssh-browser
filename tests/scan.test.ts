@@ -22,6 +22,7 @@ test("parses server id and listener lines", () => {
     port: 5173,
     host: "::1",
     pid: 42,
+    startedAt: null,
     cwd: "/home/me/app",
     command: "node /home/me/app/node_modules/.bin/vite",
     probe: "html",

@@ -5,6 +5,7 @@ import {
   forwardsRpc,
   openRpc,
   scanRpc,
+  stopServiceRpc,
   targetsRpc,
   targetsSettings,
   recentSettings,
@@ -20,7 +21,7 @@ import {
   type TransferJob,
 } from "../shared/transfer";
 
-const BRIDGE_VERSION = 6;
+const BRIDGE_VERSION = 7;
 
 // Tunnels have to start on the computer running the app, so every surface, whichever host's copy
 // of the plugin renders it, calls the copy installed on this computer's own Paseo host. Paseo runs
@@ -29,6 +30,7 @@ const BRIDGE_VERSION = 6;
 export interface LocalApi {
   version: typeof BRIDGE_VERSION;
   scan(input: RpcInput<typeof scanRpc>): Promise<RpcOutput<typeof scanRpc>>;
+  stopService(input: RpcInput<typeof stopServiceRpc>): Promise<RpcOutput<typeof stopServiceRpc>>;
   forwards(): Promise<RpcOutput<typeof forwardsRpc>>;
   open(input: RpcInput<typeof openRpc>): Promise<Forward>;
   close(input: RpcInput<typeof closeRpc>): Promise<RpcOutput<typeof closeRpc>>;
@@ -53,6 +55,7 @@ const receiveFolderSetting = settingsRpc(receiveSettings.id);
 
 export interface RpcCalls {
   scan: (input: RpcInput<typeof scanRpc>) => Promise<RpcOutput<typeof scanRpc>>;
+  stopService: (input: RpcInput<typeof stopServiceRpc>) => Promise<RpcOutput<typeof stopServiceRpc>>;
   forwards: (input: RpcInput<typeof forwardsRpc>) => Promise<RpcOutput<typeof forwardsRpc>>;
   open: (input: RpcInput<typeof openRpc>) => Promise<Forward>;
   close: (input: RpcInput<typeof closeRpc>) => Promise<RpcOutput<typeof closeRpc>>;
@@ -74,6 +77,7 @@ export interface RpcCalls {
 
 export const RPCS = {
   scan: scanRpc,
+  stopService: stopServiceRpc,
   forwards: forwardsRpc,
   open: openRpc,
   close: closeRpc,
@@ -95,6 +99,7 @@ export function buildLocalApi(calls: RpcCalls): LocalApi {
   return {
     version: BRIDGE_VERSION,
     scan: calls.scan,
+    stopService: calls.stopService,
     forwards: () => calls.forwards({}),
     open: calls.open,
     close: calls.close,

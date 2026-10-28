@@ -204,6 +204,7 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
                       forwardStatus={ports.forwardStatus} styles={styles} theme={theme}
                       workspaces={ports.canOpenWorkspace ? [...ports.workspacesById.values()] : []}
                       onOpen={(options) => ports.open(row, options).catch((error) => toast.error(errorMessage(error)))}
+                      onStop={() => ports.stop(row).catch((error) => toast.error(errorMessage(error)))}
                       onReconnect={() => ports.reconnect(row).catch((error) => toast.error(errorMessage(error)))}
                       onClose={() => ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} />
                   </View>
@@ -221,14 +222,15 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
   );
 }
 
-function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOpen, onClose, onReconnect }: {
+function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOpen, onClose, onReconnect, onStop }: {
   row: Row; opening: boolean; forwardStatus: "ready" | "error" | "loading"; styles: Styles; theme: PluginTheme;
   workspaces: WorkspaceEntry[];
   onOpen: (options?: { external?: boolean; workspaceId?: string }) => void; onClose: () => Promise<void>;
-  onReconnect: () => void;
+  onReconnect: () => void; onStop: () => Promise<void>;
 }) {
   const { t } = useTranslation(messages);
   const [closing, setClosing] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [selectingWorkspace, setSelectingWorkspace] = useState(false);
   const hover = useRef(new Animated.Value(0)).current;
@@ -278,7 +280,7 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
           </View>
         </View>
       </Pressable>
-      {row.workspaceId || workspaces.length > 0 || forward || row.disconnected ? <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
+      {row.pid !== null && row.startedAt !== null || row.workspaceId || workspaces.length > 0 || forward || row.disconnected ? <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
         accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => setActionsOpen(true)}
         onHoverIn={() => animateHover(menuHover, 1)} onHoverOut={() => animateHover(menuHover, 0)}
         style={({ pressed }) => [styles.cardMenu, pressed && styles.pressed]}>
@@ -294,12 +296,29 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
             <Icon name="Folder" size={16} color={theme.colors.foregroundMuted} />
             <Text style={styles.menuActionText}>{t("openInWorkspace")}</Text>
           </Pressable> : null}
+          {row.pid !== null && row.startedAt !== null ? (
+            <Pressable accessibilityRole="button" onPress={() => { setActionsOpen(false); setConfirmStop(true); }} style={styles.menuAction}>
+              <Icon name="Square" size={16} color={theme.colors.statusDanger} />
+              <Text style={[styles.menuActionText, { color: theme.colors.statusDanger }]}>{t("stopService")}</Text>
+            </Pressable>
+          ) : null}
           {forward || row.disconnected ? (
             <Pressable accessibilityRole="button" onPress={() => void close()} style={styles.menuAction}>
               <Icon name="Unplug" size={16} color={theme.colors.foregroundMuted} />
               <Text style={styles.menuActionText}>{t("unplug", { port: row.port })}</Text>
             </Pressable>
           ) : null}
+        </Modal.Content>
+      </Modal>
+      <Modal title={t("stopService")} open={confirmStop} onOpenChange={setConfirmStop}>
+        <Modal.Content>
+          <Text style={styles.muted}>{t("stopServiceConfirm", { port: row.port, pid: row.pid ?? 0 })}</Text>
+          <Pressable accessibilityRole="button" onPress={() => { setConfirmStop(false); setClosing(true); void onStop().finally(() => setClosing(false)); }} style={styles.menuAction}>
+            <Text style={[styles.menuActionText, { color: theme.colors.statusDanger }]}>{t("stopService")}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setConfirmStop(false)} style={styles.menuAction}>
+            <Text style={styles.menuActionText}>{t("cancel")}</Text>
+          </Pressable>
         </Modal.Content>
       </Modal>
       <Modal title={t("selectWorkspace")} open={selectingWorkspace} onOpenChange={setSelectingWorkspace}>

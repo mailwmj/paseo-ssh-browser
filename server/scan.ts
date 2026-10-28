@@ -35,7 +35,11 @@ while read -r _state _recvq _sendq local _peer rest; do
   cwd=
   cmd=
   agent=
+  started=
   if [ -n "$pid" ]; then
+    stat=$(cat "/proc/$pid/stat" 2>/dev/null)
+    stat=${D}{stat##*) }
+    started=$(printf '%s\n' "$stat" | awk '{print $20}')
     cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null)
     cmd=$(tr '\000\t\n' '   ' < "/proc/$pid/cmdline" 2>/dev/null | cut -c1-300)
     agent=$(tr '\000' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's/^PASEO_AGENT_ID=\([A-Za-z0-9_-]*\)$/\1/p' | head -n 1)
@@ -74,7 +78,7 @@ while read -r _state _recvq _sendq local _peer rest; do
         fi
         ;;
     esac
-    printf 'P\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$port" "$host" "$pid" "$cwd" "$cmd" "$probe" "$title" "$protocol" "$agent" > "$dir/$i.out"
+    printf 'P\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$port" "$host" "$pid" "$cwd" "$cmd" "$probe" "$title" "$protocol" "$agent" "$started" > "$dir/$i.out"
   ) &
 done < "$dir/ss"
 wait
@@ -94,6 +98,7 @@ export interface ScanLine {
   title: string | null;
   protocol: "http" | "https";
   agentId: string | null;
+  startedAt: string | null;
 }
 
 export function parseScanOutput(text: string): { serverId: string | null; lines: ScanLine[] } {
@@ -117,6 +122,7 @@ export function parseScanOutput(text: string): { serverId: string | null; lines:
         title: decodeEntities(fields[7]?.trim() ?? "") || null,
         protocol: fields[8] === "https" ? "https" : "http",
         agentId: fields[9] || null,
+        startedAt: /^\d+$/.test(fields[10] ?? "") ? fields[10] : null,
       });
     }
   }
@@ -194,6 +200,7 @@ export class PortScanner {
         port: line.port,
         host: line.host,
         pid: line.pid,
+        startedAt: line.startedAt,
         command: line.command,
         cwd: line.cwd,
         title: result.title,

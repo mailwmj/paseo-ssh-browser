@@ -9,6 +9,7 @@ const unused = async (): Promise<never> => {
 function calls(overrides: Partial<RpcCalls> = {}): RpcCalls {
   return {
     scan: unused,
+    stopService: unused,
     forwards: unused,
     open: unused,
     close: unused,

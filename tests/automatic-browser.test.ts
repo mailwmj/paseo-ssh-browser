@@ -7,7 +7,7 @@ import type { OpenRequest } from "../shared/remote-url";
 const request = (): OpenRequest => ({ requestId: "request", serverId: "remote", workspaceId: "workspace", agentId: "agent", remoteUrl: "https://[::1]:3000/dashboard?tab=home#details", expiresAt: Date.now() + 1000 });
 const unused = async (): Promise<never> => { throw new Error("unused"); };
 function api(overrides: Partial<RpcCalls> = {}) {
-  return buildLocalApi({ scan: async () => ({ serverId: "remote", ports: [] }), forwards: unused,
+  return buildLocalApi({ scan: async () => ({ serverId: "remote", ports: [] }), stopService: unused, forwards: unused,
     open: async (input) => ({ ...input, localPort: 44001, url: "http://localhost:44001/" }), close: unused,
     targets: async () => ({ targets: [] }), readSettings: unused, writeSettings: unused,
     readRecent: async () => ({ status: "ready", revision: "r", values: { pages: [] } }),
