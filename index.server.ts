@@ -73,7 +73,7 @@ export default function contribute(server: PluginServerContext) {
     return {};
   });
   server.handle(receiveFolderRpc, async () => ({ folder: await receiveFolder() }));
-  server.handle(recentFilesRpc, async ({ directory }) => ({ files: await recentFiles(directory) }));
+  server.handle(recentFilesRpc, ({ directory, offset, query }) => recentFiles(directory, { offset, query }));
 
   return () => {
     transfers.stop();

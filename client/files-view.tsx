@@ -1,7 +1,7 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc, useTranslation, useWorkspace } from "@getpaseo/plugin/client";
 import { copyText, Icon, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, Text, View, type StyleProp, type TextInput as NativeTextInput, type ViewStyle } from "react-native";
 import { recentFilesRpc, type RecentFile, type TransferJob } from "../shared/transfer";
@@ -24,7 +24,6 @@ interface FilesViewProps {
 
 type Styles = ReturnType<typeof createStyles>;
 type Row = { kind: "file"; file: RecentFile } | { kind: "path"; path: string };
-const VISIBLE_FILES = 6;
 const VISIBLE_JOBS = 3;
 
 // The panel and popover share the same native UI; the host owns the surrounding surface.
@@ -61,7 +60,6 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
   const [receiving, setReceiving] = useState<ReadonlySet<string>>(new Set());
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [hiddenReceives, setHiddenReceives] = useState<ReadonlySet<string>>(new Set());
   const initialHistory = useRef<ReadonlySet<string> | null>(null);
   const ownReceives = useRef(new Set<string>());
@@ -69,9 +67,13 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
   const Content = popover ? View : ScrollView;
   const muted = theme.colors.foregroundMuted;
 
-  const recent = useQuery({
-    queryKey: ["recent-files", hostId, directory],
-    queryFn: () => recentRpc({ directory }),
+  const text = query.trim();
+  const needle = text.toLowerCase();
+  const recent = useInfiniteQuery({
+    queryKey: ["recent-files-paged", hostId, directory, needle],
+    queryFn: ({ pageParam }) => recentRpc({ directory, offset: pageParam, query: needle }),
+    initialPageParam: 0,
+    getNextPageParam: (page) => page.nextOffset ?? undefined,
     refetchOnMount: "always",
     refetchInterval: 5000,
   });
@@ -82,7 +84,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
   });
   const folder = useQuery({ queryKey: ["receive-folder"], queryFn: () => api.receiveFolder() });
   const loadingRecent = !recent.isFetchedAfterMount && recent.isFetching;
-  const files = loadingRecent ? [] : recent.data?.files ?? [];
+  const files = loadingRecent ? [] : recent.data?.pages.flatMap((page) => page.files) ?? [];
   const allJobs = (transfers.data ?? []).filter((job) => job.target === target);
   const byId = new Map(allJobs.map((job) => [job.id, job]));
   const sendFiles = queue.map((file) => ({ ...file, job: file.job ? byId.get(file.job.id) ?? file.job : undefined }));
@@ -106,14 +108,11 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
   const received = new Map<string, TransferJob>();
   for (const job of allJobs) if (job.direction === "receive") received.set(job.source, job);
 
-  const text = query.trim();
-  const needle = text.toLowerCase();
-  const matches = needle ? files.filter((file) => relativePath(file, directory).toLowerCase().includes(needle)) : files;
   // A plain unmatched search stays a search. Explicit paths can also point outside the recent list.
   const typedPath = /^(\/|~(?:\/|$)|\.\.?\/)/.test(text) ? resolveRemotePath(text, directory) : null;
   const rows: Row[] = [
-    ...(typedPath && !matches.some((file) => file.path === typedPath) ? [{ kind: "path" as const, path: typedPath }] : []),
-    ...(needle || showAll ? matches : matches.slice(0, VISIBLE_FILES)).map((file) => ({ kind: "file" as const, file })),
+    ...(typedPath && !files.some((file) => file.path === typedPath) ? [{ kind: "path" as const, path: typedPath }] : []),
+    ...files.map((file) => ({ kind: "file" as const, file })),
   ];
   const savedDirectory = folder.data ? receiveDirectory(folder.data, name) : null;
 
@@ -287,7 +286,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
           </View>
           <View style={[styles.row, styles.listHead, styles.recentHead]}>
             <Text style={[styles.small, styles.grow]}>{t(needle ? "searchResults" : "recentFiles")}</Text>
-            <Text style={styles.small}>{needle ? t("fileCount", { count: rows.length }) : t("recentPeriod")}</Text>
+            {needle ? <Text style={styles.small}>{t("fileCount", { count: (recent.data?.pages[0].total ?? 0) + (rows[0]?.kind === "path" ? 1 : 0) })}</Text> : null}
           </View>
           {recent.isPending || loadingRecent ? <ActivityIndicator color={muted} style={styles.note} /> : null}
           {recent.isError ? <Text style={[styles.muted, styles.note]}>{t("recentFilesFailed")}</Text> : null}
@@ -309,21 +308,18 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
               </HoverPressable>
             );
           })}
-          {!needle && files.length > VISIBLE_FILES ? (
-            <HoverPressable label={showAll ? t("collapseFiles") : t("showMoreFiles", { count: files.length - VISIBLE_FILES })}
-              style={[styles.row, styles.showMore]} hoverStyle={styles.hovered} onPress={() => setShowAll(!showAll)}>
-              <Text style={styles.small}>{showAll ? t("collapseFiles") : t("showMoreFiles", { count: files.length - VISIBLE_FILES })}</Text>
-              <Icon name={showAll ? "ChevronUp" : "ChevronDown"} size={13} color={muted} />
+          {recent.hasNextPage ? (
+            <HoverPressable label={t(recent.isFetchingNextPage ? "loadingMoreFiles" : "loadMoreFiles")}
+              disabled={recent.isFetching} style={[styles.row, styles.showMore]} hoverStyle={styles.hovered}
+              onPress={() => void recent.fetchNextPage()}>
+              <Text style={styles.small}>{t(recent.isFetchingNextPage ? "loadingMoreFiles" : "loadMoreFiles")}</Text>
+              {recent.isFetchingNextPage ? <ActivityIndicator size={13} color={muted} /> : <Icon name="ChevronDown" size={13} color={muted} />}
             </HoverPressable>
           ) : null}
         </Content>
       )}
     </View>
   );
-}
-
-function relativePath(file: RecentFile, directory: string): string {
-  return [parentName(file.path, directory), file.name].filter(Boolean).join("/");
 }
 
 function HoverPressable({ label, style, hoverStyle, disabled, onPress, children }: {

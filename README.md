@@ -46,7 +46,7 @@ An agent can call `open_remote_url` with a remote loopback HTTP or HTTPS URL, th
 Open **File transfer** from the workspace header, **+** menu, Explorer, or Command Center. To hide these entries for a host, turn off **Show file transfer** under **Settings → Plugins → SSH Browser** on that host. Ongoing transfers continue.
 
 - **Send to host:** choose the destination folder, add files from your computer, and select **Send**. The destination defaults to the workspace folder and is remembered for that workspace.
-- **Download to this computer:** select a recently changed workspace file, or enter an explicit remote path beginning with `/`, `~/`, `./`, or `../` and press Enter. Search filters the recent list.
+- **Download to this computer:** select a workspace file, or enter an explicit remote path beginning with `/`, `~/`, `./`, or `../` and press Enter. Files are sorted by modification time, with 20 loaded initially and 20 more each time you select **Load more** at the bottom. Search covers workspace files beyond the loaded pages.
 
 Downloads are saved under `~/Downloads/Paseo/<workspace name>/` by default; change the receive folder in the panel. Transfers show progress and can be cancelled or retried. Existing files are not overwritten: a numbered suffix is added. Folders, drag and drop, and resuming transfers are not supported.
 

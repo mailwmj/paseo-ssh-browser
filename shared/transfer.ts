@@ -76,9 +76,11 @@ export const recentFile = z.object({
 });
 export type RecentFile = z.infer<typeof recentFile>;
 
-// Files changed lately under a directory on the host this copy runs on, for a workspace there.
+// Workspace files on this host, ordered by modification time and loaded in pages.
+export const RECENT_FILES_PAGE_SIZE = 20;
+
 export const recentFilesRpc = defineRpc({
   name: "transfer.recent",
-  input: z.object({ directory: path }),
-  output: z.object({ files: z.array(recentFile) }),
+  input: z.object({ directory: path, offset: z.number().int().nonnegative().default(0), query: z.string().max(4096).default("") }),
+  output: z.object({ files: z.array(recentFile), total: z.number().int().nonnegative(), nextOffset: z.number().int().nonnegative().nullable() }),
 });
