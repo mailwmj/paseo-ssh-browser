@@ -20,7 +20,7 @@ interface FilesViewProps {
 }
 
 // Send desktop files to the host a workspace runs on and receive files from it. Used by the Files
-// panel and the composer pill, so it renders plain content and leaves scrolling to its container.
+// panel and the header popover, so it renders plain content and leaves scrolling to its container.
 export function FilesView(props: FilesViewProps) {
   const { t } = useTranslation(messages);
   const { api, target, pending } = useSshTarget(props.hostId);
