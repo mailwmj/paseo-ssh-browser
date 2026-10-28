@@ -215,7 +215,6 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
         ))}
       </View>
 
-      <Content style={popover ? undefined : styles.panelContent}>
       {transfers.isError ? (
         <View style={styles.row}>
           <Text style={[styles.muted, styles.grow]}>{t("transfersFailed")}</Text>
@@ -224,7 +223,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
       ) : null}
 
       {direction === "send" ? desktop ? (
-        <View>
+        <View style={!popover && styles.panelContent}>
           <View style={[styles.bar, editing && styles.focusedBar]}>
             <Icon name="Folder" size={15} color={muted} />
             {editing ? (
@@ -237,9 +236,9 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
               <Text style={styles.small}>{t(editing ? "done" : "edit")}</Text>
             </HoverPressable>
           </View>
-          <View style={styles.sendQueue}>
+          <Content style={[styles.sendQueue, !popover && styles.panelContent]}>
             {sendFiles.length > 0 ? sendFiles.map((file) => transferLine(file, true)) : <Text style={styles.emptyQueue}>{t("noPickedFiles")}</Text>}
-          </View>
+          </Content>
           <View style={[styles.row, styles.sendActions]}>
             <HoverPressable label={t("addFiles")} style={[styles.row, styles.secondary]} hoverStyle={styles.hovered} onPress={pick}>
               <Icon name="Plus" size={14} color={muted} /><Text style={styles.actionText}>{t("addFiles")}</Text>
@@ -255,7 +254,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
           </View>
         </View>
       ) : <Text style={[styles.muted, styles.note]}>{t("sendUnavailable", { host: hostLabel })}</Text> : (
-        <View>
+        <Content style={!popover && styles.panelContent}>
           {savedDirectory ? (
             <View style={[styles.bar, styles.receiveFolder]}>
               <Icon name="Folder" size={15} color={muted} />
@@ -317,9 +316,8 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
               <Icon name={showAll ? "ChevronUp" : "ChevronDown"} size={13} color={muted} />
             </HoverPressable>
           ) : null}
-        </View>
+        </Content>
       )}
-      </Content>
     </View>
   );
 }
