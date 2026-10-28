@@ -1,6 +1,5 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import {
-  useHosts,
   useTabState,
   useTranslation,
   type PluginWorkspacePanelProps,
@@ -15,7 +14,7 @@ import { errorMessage, IconButton } from "./kit";
 import { messages } from "./messages";
 import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
-import { readHostRegistry } from "./web";
+import { useSshTarget } from "./use-target";
 import { OtherPorts } from "./other-ports";
 
 type Styles = ReturnType<typeof createStyles>;
@@ -25,22 +24,10 @@ const tabSchema = z.object({ autoOpened: z.boolean() });
 export function BrowserPanel(props: PluginWorkspacePanelProps & { suppressAutoOpen?: () => boolean }) {
   const { theme, layout, host } = props;
   const { t } = useTranslation(messages);
-  const hosts = useHosts();
-  const registry = useMemo(() => readHostRegistry(), [hosts]);
   const styles = useMemo(() => createStyles(theme, layout.compact), [theme, layout.compact]);
-  const api = useApi();
-  // A host Paseo reaches over SSH carries its address; one reached another way, such as the relay,
-  // needs the SSH host entered on the sidebar screen, matched here by its Paseo server.
-  const saved = useQuery({
-    queryKey: ["targets"],
-    queryFn: () => (api as LocalApi).targets(),
-    enabled: api !== null && !registry.ssh.some((item) => item.serverId === host.id),
-  });
-  const target =
-    registry.ssh.find((item) => item.serverId === host.id)?.target ??
-    saved.data?.targets.find((item) => item.serverId === host.id)?.target;
+  const { api, target, pending } = useSshTarget(host.id);
 
-  if (api && !target && saved.isPending && saved.fetchStatus !== "idle") {
+  if (pending) {
     return <View style={styles.screen} />;
   }
   if (!target || !api) {

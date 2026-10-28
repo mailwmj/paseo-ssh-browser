@@ -27,9 +27,19 @@ export function useApi(): LocalApi | null {
   const writeSettings = useRpc(RPCS.writeSettings);
   const readRecent = useRpc(RPCS.readRecent);
   const writeRecent = useRpc(RPCS.writeRecent);
+  const send = useRpc(RPCS.send);
+  const receive = useRpc(RPCS.receive);
+  const list = useRpc(RPCS.transfers);
+  const cancel = useRpc(RPCS.cancelTransfer);
+  const folder = useRpc(RPCS.receiveFolder);
+  const readFolder = useRpc(RPCS.readReceiveFolder);
+  const writeFolder = useRpc(RPCS.writeReceiveFolder);
   const own = useMemo(
-    () => buildLocalApi({ scan, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent }),
-    [scan, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent],
+    () => buildLocalApi({
+      scan, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent,
+      transfer: { send, receive, list, cancel, folder, readFolder, writeFolder },
+    }),
+    [scan, forwards, open, close, targets, readSettings, writeSettings, readRecent, writeRecent, send, receive, list, cancel, folder, readFolder, writeFolder],
   );
   return local ?? (readHostRegistry().local.length === 0 ? own : null);
 }

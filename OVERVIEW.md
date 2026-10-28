@@ -13,6 +13,17 @@ Cards show remote and local ports, and offer reconnect if an SSH forward exits u
 
 Clicking a page starts `ssh -L` and opens `http://localhost:<port>`. The local port matches the remote one when it is free, so cookies and OAuth callbacks keep working. An unplug button stops a forward.
 
+## File transfer
+
+Move files between your computer and the SSH host a workspace runs on, without involving the agent, so nothing is added to its context.
+
+- **Send:** in **+ → File transfer** (also available in the Explorer), choose files on your computer, check the folder on the host, which defaults to the workspace directory and is remembered per workspace, and select **Send**.
+- **Receive:** a **Files** button sits next to Tasks and Subagents in the composer. It lists files changed in the workspace during the last six hours, newest first. Tick one or more and select **Receive**. A path typed in the field below also works: absolute, starting with `~`, or relative to the workspace.
+- Received files go to `<receive folder>/<workspace name>/`. The receive folder defaults to `~/Downloads/Paseo` and can be changed in the panel.
+- Progress, cancel, the final path, and a shortcut to show a received file in your file manager appear as cards.
+
+A file is never overwritten: if the name exists, the new file is saved as `name (1).ext`. Data is written to a hidden temporary file and moved into place only when the whole file has arrived with the expected size, so a cancelled or interrupted transfer leaves nothing behind. Transfers run through your own `ssh` as `cat` over the existing connection, up to three at a time. Folders, drag and drop, and resuming are not supported. Choosing files and showing them in a folder need Paseo Desktop, which exposes those through its own app, not a plugin API.
+
 ## Setup
 
 - Both Paseo Desktop and the daemons require **0.14.0-beta.1 or later**. Install the same SSH Browser version on both hosts, reload both copies, then let the agent session reopen before its next prompt.

@@ -185,7 +185,8 @@ test("real ssh: tool request and desktop handler return the remote marker on an 
     const local = buildLocalApi({ scan: ({ target }) => scanner.scan(target), open: ({ target, remoteHost, remotePort }) => tunnels.open(target, remoteHost, remotePort),
       close: unused, forwards: unused, targets: unused, readSettings: unused, writeSettings: unused,
       readRecent: async () => ({ status: "ready", revision: "r", values: { pages: [] } }),
-      writeRecent: async ({ values }) => ({ status: "saved", revision: "r2", values }) });
+      writeRecent: async ({ values }) => ({ status: "saved", revision: "r2", values }),
+      transfer: { send: unused, receive: unused, list: unused, cancel: unused, folder: unused, readFolder: unused, writeFolder: unused } });
     const browser = new AutomaticBrowser();
     const tool = openRemoteUrlTool(broker);
     const remoteUrl = `http://localhost:${remotePort}/dashboard?tab=home#details`;

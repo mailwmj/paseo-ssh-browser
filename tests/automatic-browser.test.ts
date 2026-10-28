@@ -11,7 +11,8 @@ function api(overrides: Partial<RpcCalls> = {}) {
     open: async (input) => ({ ...input, localPort: 44001, url: "http://localhost:44001/" }), close: unused,
     targets: async () => ({ targets: [] }), readSettings: unused, writeSettings: unused,
     readRecent: async () => ({ status: "ready", revision: "r", values: { pages: [] } }),
-    writeRecent: async ({ values }) => ({ status: "saved", revision: "r2", values }), ...overrides });
+    writeRecent: async ({ values }) => ({ status: "saved", revision: "r2", values }),
+    transfer: { send: unused, receive: unused, list: unused, cancel: unused, folder: unused, readFolder: unused, writeFolder: unused }, ...overrides });
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;

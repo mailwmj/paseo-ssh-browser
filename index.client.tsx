@@ -5,6 +5,8 @@ import { AutomaticBrowser } from "./client/automatic-browser";
 import { startOpenClient } from "./client/open-client";
 import { buildLocalApi, publishLocalApi, RPCS } from "./client/bridge";
 import { BrowserPanel } from "./client/browser-panel";
+import { FilesPanel } from "./client/files-panel";
+import { startFilesPills } from "./client/files-pills";
 import { messages } from "./client/messages";
 import { PortsScreen } from "./client/ports-screen";
 import { readHostRegistry } from "./client/web";
@@ -35,6 +37,14 @@ export default function contribute(client: PluginClientContext) {
       return <BrowserPanel {...props} suppressAutoOpen={() => automaticBrowser.hasRequested(props.workspaceId)} />;
     },
   });
+  client.addWorkspacePanel({
+    id: "files",
+    title: messages.message("files"),
+    icon: "ArrowLeftRight",
+    locations: ["workspace", "explorer"],
+    Component: FilesPanel,
+  });
+  const stopFilesPills = startFilesPills(client);
   const stopOpenClient = startOpenClient(client, automaticBrowser);
   client.addCommandCenterItem({
     id: "open-ports",
@@ -65,6 +75,15 @@ export default function contribute(client: PluginClientContext) {
           writeSettings: (input) => client.rpc(RPCS.writeSettings, input),
           readRecent: (input) => client.rpc(RPCS.readRecent, input),
           writeRecent: (input) => client.rpc(RPCS.writeRecent, input),
+          transfer: {
+            send: (input) => client.rpc(RPCS.send, input),
+            receive: (input) => client.rpc(RPCS.receive, input),
+            list: (input) => client.rpc(RPCS.transfers, input),
+            cancel: (input) => client.rpc(RPCS.cancelTransfer, input),
+            folder: (input) => client.rpc(RPCS.receiveFolder, input),
+            readFolder: (input) => client.rpc(RPCS.readReceiveFolder, input),
+            writeFolder: (input) => client.rpc(RPCS.writeReceiveFolder, input),
+          },
         }),
       );
     })
@@ -72,6 +91,7 @@ export default function contribute(client: PluginClientContext) {
 
   return () => {
     stopped = true;
+    stopFilesPills();
     stopOpenClient();
     unpublish();
   };

@@ -17,6 +17,7 @@ function calls(overrides: Partial<RpcCalls> = {}): RpcCalls {
     writeSettings: unused,
     readRecent: unused,
     writeRecent: unused,
+    transfer: { send: unused, receive: unused, list: unused, cancel: unused, folder: unused, readFolder: unused, writeFolder: unused },
     ...overrides,
   };
 }
@@ -85,4 +86,50 @@ test("an SSH host the settings reject is reported, not retried", async () => {
   );
   await assert.rejects(api.updateTargets(() => ["-oops"]), /Not a valid SSH destination/);
   assert.equal(writes, 1);
+});
+
+test("the receive folder is saved against the revision it read, retried once on a conflict, and null restores the default", async () => {
+  const revisions = ["r1", "r2"];
+  const written: unknown[] = [];
+  const api = buildLocalApi(
+    calls({
+      transfer: {
+        ...calls().transfer,
+        readFolder: async () => ({ status: "ready", revision: revisions.shift()!, values: { folder: null } }),
+        writeFolder: async ({ revision, values }) => {
+          written.push(values);
+          return revision === "r1" ? { status: "conflict", error: "stale" } : { status: "saved", revision: "r3", values };
+        },
+      },
+    }),
+  );
+  await api.setReceiveFolder(null);
+  assert.deepEqual(written, [{ folder: null }, { folder: null }]);
+});
+
+test("a receive folder the settings reject is reported, not retried", async () => {
+  let writes = 0;
+  const api = buildLocalApi(
+    calls({
+      transfer: {
+        ...calls().transfer,
+        readFolder: async () => ({ status: "ready", revision: "r1", values: { folder: null } }),
+        writeFolder: async () => {
+          writes++;
+          return { status: "invalid", error: "Not a valid path" };
+        },
+      },
+    }),
+  );
+  await assert.rejects(api.setReceiveFolder("bad\0path"), /Not a valid path/);
+  assert.equal(writes, 1);
+});
+
+test("transfer calls unwrap the job lists", async () => {
+  const job = { id: "1", direction: "send", target: "box", name: "a.zip", source: "/a.zip", destination: "/srv", finalPath: null, bytes: 0, total: 1, status: "queued", error: null } as const;
+  const api = buildLocalApi(
+    calls({ transfer: { ...calls().transfer, send: async () => ({ jobs: [job] }), list: async () => ({ jobs: [job] }) } }),
+  );
+  assert.deepEqual(await api.send({ target: "box", paths: ["/a.zip"], remoteDir: "/srv" }), [job]);
+  assert.deepEqual(await api.transfers(), [job]);
 });

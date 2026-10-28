@@ -10,6 +10,10 @@ git:mailwmj/paseo-ssh-browser
 
 See [OVERVIEW.md](OVERVIEW.md) for requirements and what the plugin reads and runs.
 
+## File transfer
+
+Send files from your computer to the host a workspace runs on, and receive files the agent wrote, from **+ → File transfer** or the **Files** button in the composer. Nothing goes through the agent, so its context is untouched. See [docs/file-transfer.md](docs/file-transfer.md).
+
 ## Agent previews (Paseo 0.14 beta)
 
 Use Paseo **0.14.0-beta.1 or later on both the daemon and Desktop**, and install the same SSH Browser version on the desktop's own daemon and the remote daemon. Reload both copies after an update. An existing agent receives `open_remote_url` when its session next opens, before its next idle prompt.

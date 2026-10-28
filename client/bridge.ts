@@ -10,8 +10,17 @@ import {
   recentSettings,
   type Forward,
 } from "../shared/ports";
+import {
+  cancelTransferRpc,
+  receiveFolderRpc,
+  receiveRpc,
+  receiveSettings,
+  sendRpc,
+  transfersRpc,
+  type TransferJob,
+} from "../shared/transfer";
 
-const BRIDGE_VERSION = 5;
+const BRIDGE_VERSION = 6;
 
 // Tunnels have to start on the computer running the app, so every surface, whichever host's copy
 // of the plugin renders it, calls the copy installed on this computer's own Paseo host. Paseo runs
@@ -27,12 +36,20 @@ export interface LocalApi {
   updateTargets(change: (targets: string[]) => string[]): Promise<void>;
   recent(): Promise<RecentPage[]>;
   updateRecent(change: (pages: RecentPage[]) => RecentPage[]): Promise<void>;
+  send(input: RpcInput<typeof sendRpc>): Promise<TransferJob[]>;
+  receive(input: RpcInput<typeof receiveRpc>): Promise<TransferJob[]>;
+  transfers(): Promise<TransferJob[]>;
+  cancelTransfer(id: string): Promise<void>;
+  receiveFolder(): Promise<string>;
+  // null returns to the default folder.
+  setReceiveFolder(folder: string | null): Promise<void>;
 }
 
 export type RecentPage = { serverId: string; workspaceId: string; url: string };
 
 const targetSettings = settingsRpc(targetsSettings.id);
 const recentRpc = settingsRpc(recentSettings.id);
+const receiveFolderSetting = settingsRpc(receiveSettings.id);
 
 export interface RpcCalls {
   scan: (input: RpcInput<typeof scanRpc>) => Promise<RpcOutput<typeof scanRpc>>;
@@ -44,6 +61,15 @@ export interface RpcCalls {
   writeSettings: (input: RpcInput<typeof targetSettings.write>) => Promise<RpcOutput<typeof targetSettings.write>>;
   readRecent: (input: RpcInput<typeof recentRpc.read>) => Promise<RpcOutput<typeof recentRpc.read>>;
   writeRecent: (input: RpcInput<typeof recentRpc.write>) => Promise<RpcOutput<typeof recentRpc.write>>;
+  transfer: {
+    send: (input: RpcInput<typeof sendRpc>) => Promise<RpcOutput<typeof sendRpc>>;
+    receive: (input: RpcInput<typeof receiveRpc>) => Promise<RpcOutput<typeof receiveRpc>>;
+    list: (input: RpcInput<typeof transfersRpc>) => Promise<RpcOutput<typeof transfersRpc>>;
+    cancel: (input: RpcInput<typeof cancelTransferRpc>) => Promise<RpcOutput<typeof cancelTransferRpc>>;
+    folder: (input: RpcInput<typeof receiveFolderRpc>) => Promise<RpcOutput<typeof receiveFolderRpc>>;
+    readFolder: (input: RpcInput<typeof receiveFolderSetting.read>) => Promise<RpcOutput<typeof receiveFolderSetting.read>>;
+    writeFolder: (input: RpcInput<typeof receiveFolderSetting.write>) => Promise<RpcOutput<typeof receiveFolderSetting.write>>;
+  };
 }
 
 export const RPCS = {
@@ -56,6 +82,13 @@ export const RPCS = {
   writeSettings: targetSettings.write,
   readRecent: recentRpc.read,
   writeRecent: recentRpc.write,
+  send: sendRpc,
+  receive: receiveRpc,
+  transfers: transfersRpc,
+  cancelTransfer: cancelTransferRpc,
+  receiveFolder: receiveFolderRpc,
+  readReceiveFolder: receiveFolderSetting.read,
+  writeReceiveFolder: receiveFolderSetting.write,
 } as const;
 
 export function buildLocalApi(calls: RpcCalls): LocalApi {
@@ -81,6 +114,30 @@ export function buildLocalApi(calls: RpcCalls): LocalApi {
         if (result.status === "invalid") throw new Error(result.error);
       }
       throw new Error("Recent pages changed while saving; try again");
+    },
+    async send(input) {
+      return (await calls.transfer.send(input)).jobs;
+    },
+    async receive(input) {
+      return (await calls.transfer.receive(input)).jobs;
+    },
+    async transfers() {
+      return (await calls.transfer.list({})).jobs;
+    },
+    async cancelTransfer(id) {
+      await calls.transfer.cancel({ id });
+    },
+    async receiveFolder() {
+      return (await calls.transfer.folder({})).folder;
+    },
+    async setReceiveFolder(folder) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const current = await calls.transfer.readFolder({});
+        const result = await calls.transfer.writeFolder({ revision: current.revision, values: { folder } });
+        if (result.status === "saved") return;
+        if (result.status === "invalid") throw new Error(result.error);
+      }
+      throw new Error("The receive folder changed while saving; try again");
     },
     // Read, change, and write against the read revision; another client's save in between is retried once.
     async updateTargets(change) {
