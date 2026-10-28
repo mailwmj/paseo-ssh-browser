@@ -258,7 +258,8 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
   const title = row.label ?? t("portTitle", { port: row.port });
   const forward = forwardStatus === "ready" ? row.forward : undefined;
   const status = forwardStatus === "loading" ? t("checkingForward") : forwardStatus === "error" ? t("forwardUnavailable") :
-    forward ? t("mapping", { remote: row.port, local: forward.localPort }) : row.disconnected ? t("disconnected") : t("notForwarded");
+    forward?.connectionError ? t("remoteConnectionFailedShort") : forward ? t("forwardConnected") : row.disconnected ? t("disconnected") : t("notForwarded");
+  const portLabel = row.label ? t("port", { port: row.port }) : null;
   const busy = opening || closing;
   const close = async () => {
     setActionsOpen(false);
@@ -270,24 +271,20 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
       onPointerEnter={(event) => { if (event.nativeEvent.pointerType === "mouse") animateHover(hover, 1); }}
       onPointerLeave={(event) => { if (event.nativeEvent.pointerType === "mouse") animateHover(hover, 0); }}>
       <Animated.View pointerEvents="none" style={[styles.cardHover, { opacity: hover }]} />
-      <Pressable accessibilityRole="button" accessibilityLabel={`${t("openPage", { title })}, ${status}`}
+      <Pressable accessibilityRole="button" accessibilityLabel={`${t("openPage", { title })}, ${portLabel ? `${portLabel}, ` : ""}${status}`}
         accessibilityState={{ disabled: busy, busy: opening }} disabled={busy} onPress={() => row.disconnected ? onReconnect() : onOpen()}
         style={({ pressed }) => [styles.cardMain, pressed && styles.cardPressed]}>
         <View style={styles.cardHead}>
           <Icon name="Globe" size={19} color={theme.colors.foregroundMuted} />
           <View style={styles.cardNames}>
             <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
-            <Text style={styles.cardPort}>{t("port", { port: row.port })}{row.protocol === "https" ? " · HTTPS" : ""}</Text>
-            {row.agent ? <Text style={styles.cardPort} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}</Text> : null}
-            {row.agent?.stopped ? <Text style={styles.cardPort}>{t("agentStopped")}</Text> : null}
-            {forward?.connectionError ? <Text style={styles.cardPort}>{t("remoteConnectionFailed")}</Text> : null}
           </View>
         </View>
         <View style={styles.cardFooter}>
           <View style={styles.statusRow}>
             {busy ? <ActivityIndicator size="small" color={theme.colors.foregroundMuted} /> :
-              <View style={[styles.statusDot, forward && styles.statusDotOn]} />}
-            <Text style={styles.statusText} numberOfLines={1}>{status}</Text>
+              <View style={[styles.statusDot, forward && !forward.connectionError && styles.statusDotOn, forward?.connectionError && styles.statusDotError]} />}
+            <Text style={styles.statusText}>{portLabel ? `${portLabel} · ` : ""}{status}</Text>
           </View>
           <View style={styles.openAction}>
             <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: hover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
@@ -295,15 +292,21 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
           </View>
         </View>
       </Pressable>
-      {row.pid !== null && row.startedAt !== null || row.workspaceId || workspaces.length > 0 || forward || row.disconnected ? <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
+      <Pressable accessibilityRole="button" accessibilityLabel={t("serviceActions", { title })}
         accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => setActionsOpen(true)}
         onHoverIn={() => animateHover(menuHover, 1)} onHoverOut={() => animateHover(menuHover, 0)}
         style={({ pressed }) => [styles.cardMenu, pressed && styles.pressed]}>
         <Animated.View pointerEvents="none" style={[styles.actionHover, { opacity: menuHover.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }) }]} />
         <Icon name="Ellipsis" size={18} color={theme.colors.foregroundMuted} />
-      </Pressable> : null}
+      </Pressable>
       <Modal title={title} open={actionsOpen} onOpenChange={setActionsOpen}>
         <Modal.Content contentContainerStyle={styles.dialogList}>
+          <View style={styles.serviceDetails}>
+            <Text style={styles.cardPort}>{forward ? t("mapping", { remote: row.port, local: forward.localPort }) : t("port", { port: row.port })}{row.protocol === "https" ? " · HTTPS" : ""}</Text>
+            {row.agent ? <Text style={styles.cardPort}>{t("agentOwner", { title: row.agent.title })}</Text> : null}
+            {row.agent?.stopped ? <Text style={styles.cardPort}>{t("agentStopped")}</Text> : null}
+            {forward?.connectionError ? <Text style={[styles.cardPort, styles.dangerText]}>{t("remoteConnectionFailed")}</Text> : null}
+          </View>
           {row.workspaceId ? <DialogRow styles={styles} onPress={() => { setActionsOpen(false); onOpen({ external: true }); }}>
             <Icon name="ExternalLink" size={17} color={theme.colors.foregroundMuted} />
             <Text style={styles.menuActionText}>{t("openExternal")}</Text>
@@ -460,9 +463,9 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     groupTitle: { flexShrink: 1, minWidth: 0, color: colors.foreground, fontSize: 14, fontWeight: "600" as const },
     groupCount: { color: colors.foregroundMuted, fontSize: 12, fontVariant: ["tabular-nums" as const] },
     cards: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: CARD_GAP },
-    card: { minHeight: 144, borderRadius: 8, backgroundColor: colors.surface1, overflow: "hidden" as const },
+    card: { minHeight: 96, borderRadius: 8, backgroundColor: colors.surface1, overflow: "hidden" as const },
     cardHover: { position: "absolute" as const, top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.surface2 },
-    cardMain: { flex: 1, minHeight: 144, padding: 16, justifyContent: "space-between" as const, gap: 24 },
+    cardMain: { flex: 1, minHeight: 96, padding: 16, justifyContent: "space-between" as const, gap: 12 },
     cardPressed: { backgroundColor: colors.surface2 },
     cardHead: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 12, paddingRight: 32 },
     cardNames: { flex: 1, minWidth: 0, gap: 4 },
@@ -473,11 +476,13 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     statusText: { flexShrink: 1, color: colors.foregroundMuted, fontSize: 12 },
     statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.foregroundMuted },
     statusDotOn: { backgroundColor: colors.statusSuccess },
+    statusDotError: { backgroundColor: colors.statusDanger },
     openAction: { minHeight: 34, flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: colors.surface2 },
     actionHover: { position: "absolute" as const, top: 0, right: 0, bottom: 0, left: 0, borderRadius: 6, backgroundColor: colors.foreground },
     openActionText: { color: colors.foreground, fontSize: 13 },
     cardMenu: { position: "absolute" as const, right: 8, top: 8, width: 36, height: 36, alignItems: "center" as const, justifyContent: "center" as const },
     dialogList: { paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
+    serviceDetails: { paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
     menuAction: { minHeight: 46, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 6 },
     menuActionHover: { backgroundColor: colors.surface2 },
     menuActionText: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 14, lineHeight: 20 },
