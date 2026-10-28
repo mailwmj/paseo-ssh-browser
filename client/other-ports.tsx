@@ -4,15 +4,19 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { messages } from "./messages";
+import { StopServiceConfirm } from "./stop-service-confirm";
 import type { Row } from "./use-host-ports";
 
-export function OtherPorts({ rows, theme, onOpen, onClose, onReconnect }: {
+export function OtherPorts({ rows, theme, onOpen, onClose, onReconnect, onStop }: {
   rows: Row[]; theme: PluginTheme; onOpen: (row: Row, protocol: "http" | "https") => void;
   onClose: (row: Row) => void;
   onReconnect: (row: Row) => void;
+  onStop: (row: Row) => Promise<void>;
 }) {
   const { t } = useTranslation(messages);
   const [expanded, setExpanded] = useState(false);
+  const [stopping, setStopping] = useState<Row | null>(null);
+  const [stoppingPort, setStoppingPort] = useState<number | null>(null);
   if (!rows.length) return null;
   const { colors } = theme;
   return <View style={{ gap: 8 }}>
@@ -27,7 +31,8 @@ export function OtherPorts({ rows, theme, onOpen, onClose, onReconnect }: {
         <View style={{ flex: 1, minWidth: 120 }}>
           <Text style={{ color: colors.foreground, fontSize: 14 }}>{t("port", { port: row.port })}</Text>
           {row.command ? <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12 }}>{row.command}</Text> : null}
-          {row.agent ? <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12 }}>{t("agentOwner", { title: row.agent.title })}{row.agent.stopped ? ` · ${t("agentStopped")}` : ""}</Text> : null}
+          {row.agent ? <Text numberOfLines={1} style={{ color: colors.foregroundMuted, fontSize: 12 }}>{t("agentOwner", { title: row.agent.title })}</Text> : null}
+          {row.agent?.stopped ? <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>{t("agentStopped")}</Text> : null}
           {row.forward || row.disconnected ? <Text style={{ color: colors.foregroundMuted, fontSize: 12 }}>{row.forward ? t("mapping", { remote: row.port, local: row.forward.localPort }) : t("disconnected")}</Text> : null}
           {row.forward?.connectionError ? <Text style={{ color: colors.statusDanger, fontSize: 12 }}>{t("remoteConnectionFailed")}</Text> : null}
         </View>
@@ -41,7 +46,14 @@ export function OtherPorts({ rows, theme, onOpen, onClose, onReconnect }: {
           onPress={() => onClose(row)} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 10 }}>
           <Icon name="Unplug" size={16} color={colors.foregroundMuted} />
         </Pressable> : null}
+        {row.pid !== null && row.startedAt !== null ? <Pressable accessibilityRole="button" accessibilityLabel={t("stopServicePort", { port: row.port })}
+          disabled={stoppingPort !== null} accessibilityState={{ disabled: stoppingPort !== null }}
+          onPress={() => setStopping(row)} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 10, opacity: stoppingPort !== null ? 0.5 : 1 }}>
+          <Icon name="Square" size={16} color={colors.statusDanger} />
+        </Pressable> : null}
       </View>)}
     </View> : null}
+    <StopServiceConfirm row={stopping} theme={theme} onOpenChange={(open) => { if (!open) setStopping(null); }}
+      onConfirm={(row) => { setStopping(null); setStoppingPort(row.port); void onStop(row).finally(() => setStoppingPort(null)); }} />
   </View>;
 }

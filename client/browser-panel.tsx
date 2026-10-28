@@ -16,6 +16,7 @@ import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { useSshTarget } from "./use-target";
 import { OtherPorts } from "./other-ports";
+import { StopServiceConfirm } from "./stop-service-confirm";
 
 type Styles = ReturnType<typeof createStyles>;
 
@@ -59,6 +60,8 @@ function Pages({
   const rows = ports.rows.filter((row) => row.workspaceId === workspaceId);
   const otherRows = ports.otherRows.filter((row) => row.workspaceId === workspaceId);
   const [state, setState] = useTabState(tab, tabSchema, { autoOpened: false });
+  const [stopping, setStopping] = useState<Row | null>(null);
+  const [stoppingPort, setStoppingPort] = useState<number | null>(null);
   const [address, setAddress] = useState("");
   const [addressFocused, setAddressFocused] = useState(false);
 
@@ -136,12 +139,16 @@ function Pages({
                     <Text style={row.forward ? styles.forwarded : styles.muted} numberOfLines={1}>
                       {row.forward ? t("mapping", { remote: row.port, local: row.forward.localPort }) : row.disconnected ? t("disconnected") : `${row.protocol ?? "http"}://localhost:${row.port}`}
                     </Text>
-                    {row.agent ? <Text style={styles.muted} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}{row.agent.stopped ? ` · ${t("agentStopped")}` : ""}</Text> : null}
+                    {row.agent ? <Text style={styles.muted} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}</Text> : null}
+                    {row.agent?.stopped ? <Text style={styles.muted}>{t("agentStopped")}</Text> : null}
                     {row.forward?.connectionError ? <Text style={styles.error}>{t("remoteConnectionFailed")}</Text> : null}
                   </View>
                   {ports.opening === row.port ? <ActivityIndicator size="small" color={theme.colors.accent} /> : <Text style={styles.secondaryAction}>{row.disconnected ? t("reconnect") : t("openAction")}</Text>}
                 </Pressable>
-                {row.forward && ports.opening !== row.port ? <View style={styles.rowAction}><IconButton icon="Unplug" label={t("unplug", { port: row.port })} color={theme.colors.foregroundMuted} onPress={() => void ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} /></View> : null}
+                <View style={styles.rowAction}>
+                  {row.forward && ports.opening !== row.port ? <IconButton icon="Unplug" label={t("unplug", { port: row.port })} color={theme.colors.foregroundMuted} onPress={() => void ports.close(row.port).catch((error) => toast.error(errorMessage(error)))} /> : null}
+                  {row.pid !== null && row.startedAt !== null ? <IconButton icon="Square" label={t("stopServicePort", { port: row.port })} color={theme.colors.statusDanger} disabled={stoppingPort !== null} onPress={() => setStopping(row)} /> : null}
+                </View>
               </View>
             ))}
           </View>
@@ -167,7 +174,10 @@ function Pages({
       <OtherPorts rows={otherRows} theme={theme} onOpen={(row, protocol) => {
         void ports.open(row, { protocol, workspaceId }).catch((error) => toast.error(errorMessage(error)));
       }} onClose={(row) => { void ports.close(row.port).catch((error) => toast.error(errorMessage(error))); }}
-      onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }} />
+      onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }}
+      onStop={(row) => ports.stop(row).catch((error) => toast.error(errorMessage(error)))} />
+      <StopServiceConfirm row={stopping} theme={theme} onOpenChange={(open) => { if (!open) setStopping(null); }}
+        onConfirm={(row) => { setStopping(null); setStoppingPort(row.port); void ports.stop(row).catch((error) => toast.error(errorMessage(error))).finally(() => setStoppingPort(null)); }} />
     </ScrollView>
   );
 }
@@ -193,7 +203,7 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     list: { backgroundColor: colors.surface1, borderRadius: 8, overflow: "hidden" as const },
     serviceRow: { flexDirection: "row" as const, alignItems: "center" as const },
     serviceMain: { flex: 1, minWidth: 0, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingHorizontal: 14, paddingVertical: 14, minHeight: 72 },
-    rowAction: { paddingRight: 14 },
+    rowAction: { flexDirection: "row" as const, alignItems: "center" as const, paddingRight: 8 },
     rowPressed: { backgroundColor: colors.surface2 },
     rowText: { flex: 1, minWidth: 0, gap: 4 },
     title: { color: colors.foreground, fontSize: 14, fontWeight: "600" as const },

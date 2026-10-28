@@ -6,19 +6,23 @@ export function IconButton({
   label,
   color,
   onPress,
+  disabled,
 }: {
   icon: string;
   label: string;
   color: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={8}
+      hitSlop={4}
+      disabled={disabled}
+      accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
-      style={{ padding: 6 }}
+      style={{ minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.5 : 1 }}
     >
       <Icon name={icon} size={16} color={color} />
     </Pressable>

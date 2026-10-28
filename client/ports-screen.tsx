@@ -13,6 +13,7 @@ import type { LocalApi } from "./bridge";
 import { useApi, useHostPorts, type Row } from "./use-host-ports";
 import { cardHoverDuration, readHostRegistry } from "./web";
 import { OtherPorts } from "./other-ports";
+import { StopServiceConfirm } from "./stop-service-confirm";
 
 type Navigation = PluginScreenProps["navigation"];
 type Styles = ReturnType<typeof createStyles>;
@@ -217,7 +218,8 @@ function HostSection({ target, serverId, styles, theme, compact, navigation }: {
       <OtherPorts rows={ports.otherRows} theme={theme} onOpen={(row, protocol) => {
         void ports.open(row, { protocol }).catch((error) => toast.error(errorMessage(error)));
       }} onClose={(row) => { void ports.close(row.port).catch((error) => toast.error(errorMessage(error))); }}
-      onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }} />
+      onReconnect={(row) => { void ports.reconnect(row).catch((error) => toast.error(errorMessage(error))); }}
+      onStop={(row) => ports.stop(row).catch((error) => toast.error(errorMessage(error)))} />
     </View>
   );
 }
@@ -264,7 +266,8 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
           <View style={styles.cardNames}>
             <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.cardPort}>{t("port", { port: row.port })}{row.protocol === "https" ? " · HTTPS" : ""}</Text>
-            {row.agent ? <Text style={styles.cardPort} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}{row.agent.stopped ? ` · ${t("agentStopped")}` : ""}</Text> : null}
+            {row.agent ? <Text style={styles.cardPort} numberOfLines={1}>{t("agentOwner", { title: row.agent.title })}</Text> : null}
+            {row.agent?.stopped ? <Text style={styles.cardPort}>{t("agentStopped")}</Text> : null}
             {forward?.connectionError ? <Text style={styles.cardPort}>{t("remoteConnectionFailed")}</Text> : null}
           </View>
         </View>
@@ -311,19 +314,8 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
           ) : null}
         </Modal.Content>
       </Modal>
-      <Modal title={t("stopService")} open={confirmStop} onOpenChange={setConfirmStop}>
-        <Modal.Content contentContainerStyle={styles.confirmContent}>
-          <Text style={styles.confirmMessage}>{t("stopServiceConfirm", { port: row.port, pid: row.pid ?? 0 })}</Text>
-          <View style={styles.confirmActions}>
-            <Pressable accessibilityRole="button" onPress={() => setConfirmStop(false)} style={({ pressed }) => [styles.confirmButton, styles.cancelConfirm, pressed && styles.pressed]}>
-              <Text style={styles.confirmButtonText}>{t("cancel")}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => { setConfirmStop(false); setClosing(true); void onStop().finally(() => setClosing(false)); }} style={({ pressed }) => [styles.confirmButton, styles.stopConfirm, pressed && styles.pressed]}>
-              <Text style={[styles.confirmButtonText, styles.dangerText]}>{t("stopService")}</Text>
-            </Pressable>
-          </View>
-        </Modal.Content>
-      </Modal>
+      <StopServiceConfirm row={confirmStop ? row : null} theme={theme} onOpenChange={setConfirmStop}
+        onConfirm={() => { setConfirmStop(false); setClosing(true); void onStop().finally(() => setClosing(false)); }} />
       <Modal title={t("selectWorkspace")} open={selectingWorkspace} onOpenChange={setSelectingWorkspace}>
         <Modal.Content contentContainerStyle={styles.dialogList}>
           {workspaces.map((workspace) => (
@@ -478,13 +470,6 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     menuActionHover: { backgroundColor: colors.surface2 },
     menuActionText: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 14, lineHeight: 20 },
     dangerText: { color: colors.statusDanger },
-    confirmContent: { padding: 24, gap: 24 },
-    confirmMessage: { color: colors.foregroundMuted, fontSize: 14, lineHeight: 21 },
-    confirmActions: { flexDirection: "row" as const, flexWrap: "wrap" as const, justifyContent: "flex-end" as const, gap: 8 },
-    confirmButton: { minHeight: 38, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6, alignItems: "center" as const, justifyContent: "center" as const },
-    cancelConfirm: { backgroundColor: colors.surface2 },
-    stopConfirm: { borderWidth: 1, borderColor: colors.statusDanger },
-    confirmButtonText: { color: colors.foreground, fontSize: 13, fontWeight: "600" as const },
     loadingState: { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
     emptyHosts: { alignItems: "center" as const, gap: 8, paddingTop: compact ? 20 : 32 },
     emptyIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: colors.surface1 },

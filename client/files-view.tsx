@@ -66,6 +66,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
   const initialHistory = useRef<ReadonlySet<string> | null>(null);
   const ownReceives = useRef(new Set<string>());
   const desktop = canPickFiles();
+  const Content = popover ? View : ScrollView;
   const muted = theme.colors.foregroundMuted;
 
   const recent = useQuery({
@@ -212,7 +213,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
         ))}
       </View>
 
-      <ScrollView style={popover ? styles.popoverContent : styles.panelContent} nestedScrollEnabled>
+      <Content style={popover ? undefined : styles.panelContent}>
       {transfers.isError ? (
         <View style={styles.row}>
           <Text style={[styles.muted, styles.grow]}>{t("transfersFailed")}</Text>
@@ -234,9 +235,9 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
               <Text style={styles.small}>{t(editing ? "done" : "edit")}</Text>
             </HoverPressable>
           </View>
-          <ScrollView style={styles.sendQueue} contentContainerStyle={styles.queueContent} horizontal={false} nestedScrollEnabled showsHorizontalScrollIndicator={false}>
+          <View style={styles.sendQueue}>
             {sendFiles.length > 0 ? sendFiles.map((file) => transferLine(file, true)) : <Text style={styles.emptyQueue}>{t("noPickedFiles")}</Text>}
-          </ScrollView>
+          </View>
           <View style={[styles.row, styles.sendActions]}>
             <HoverPressable label={t("addFiles")} style={[styles.row, styles.secondary]} hoverStyle={styles.hovered} onPress={pick}>
               <Icon name="Plus" size={14} color={muted} /><Text style={styles.actionText}>{t("addFiles")}</Text>
@@ -314,7 +315,7 @@ function Transfers({ theme, hostId, hostLabel, workspaceId, popover, api, target
           ) : null}
         </View>
       )}
-      </ScrollView>
+      </Content>
     </View>
   );
 }
@@ -332,7 +333,7 @@ function HoverPressable({ label, style, hoverStyle, disabled, onPress, children 
   children: ReactNode;
 }) {
   const [hovered, setHovered] = useState(false);
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} hitSlop={8}
     onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)} onPress={onPress}
     style={({ pressed }) => [style, (hovered || pressed) && hoverStyle]}>{children}</Pressable>;
 }
@@ -366,7 +367,7 @@ function TransferLine({ path, job, theme, styles, starting, retryDisabled, onRem
       <Text style={styles.small}>{status}</Text>
       <View style={styles.iconSlot}>
         {starting ? null : active ? <IconButton icon="X" label={t("cancelTransfer", { name })} color={muted} onPress={onCancel} /> :
-          job?.status === "failed" || job?.status === "cancelled" ? <Pressable disabled={retryDisabled} accessibilityRole="button" accessibilityLabel={t("retry", { name })} accessibilityState={{ disabled: retryDisabled }} style={styles.retryButton} onPress={onRetry}><Icon name="RotateCw" size={14} color={muted} /></Pressable> :
+          job?.status === "failed" || job?.status === "cancelled" ? <Pressable disabled={retryDisabled} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("retry", { name })} accessibilityState={{ disabled: retryDisabled }} style={styles.retryButton} onPress={onRetry}><Icon name="RotateCw" size={14} color={muted} /></Pressable> :
             done && onCopy ? <IconButton icon="Copy" label={t("copyPath", { name })} color={muted} onPress={onCopy} /> :
               done && onReveal ? <IconButton icon="FolderOpen" label={t("showInFolder", { name })} color={muted} onPress={onReveal} /> :
                 !job && onRemove ? <IconButton icon="X" label={t("removePicked", { name })} color={muted} onPress={onRemove} /> : null}
@@ -383,7 +384,6 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     view: { gap: 14 },
     panelView: { flex: 1, minHeight: 0 },
     panelContent: { flex: 1, minHeight: 0 },
-    popoverContent: { maxHeight: 320, flexGrow: 0 },
     row: { flexDirection: "row" as const, alignItems: "center" as const, gap: 9 },
     grow: { flex: 1, minWidth: 0 },
     tabs: { gap: 24, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -395,9 +395,8 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     focusedBar: { borderColor: colors.foregroundMuted },
     input: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 12, paddingVertical: 8, outlineWidth: 0, outlineStyle: "solid" as const },
     path: { color: colors.foreground, fontSize: 12, paddingVertical: 8 },
-    textAction: { minHeight: 28, paddingHorizontal: 4, borderRadius: 4, justifyContent: "center" as const },
-    sendQueue: { minHeight: 86, maxHeight: 228, marginTop: 12, flexGrow: 0 },
-    queueContent: { paddingVertical: 3 },
+    textAction: { minHeight: compact ? 40 : 36, paddingHorizontal: 4, borderRadius: 4, justifyContent: "center" as const },
+    sendQueue: { minHeight: 86, marginTop: 12, paddingVertical: 3 },
     emptyQueue: { minHeight: 80, paddingVertical: 29, textAlign: "center" as const, color: colors.foregroundMuted, fontSize: 12 },
     sendActions: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 0, paddingTop: 12, paddingBottom: 0, minHeight: compact ? 51 : 47 },
     secondary: { gap: 6, height: compact ? 38 : 34, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
@@ -417,11 +416,11 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     showMore: { justifyContent: "center" as const, minHeight: compact ? 40 : 34, marginTop: 2, marginBottom: 4, borderRadius: 6, gap: 5 },
     receiveFolder: { minHeight: 38, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, gap: 8 },
     receiveTransfers: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 14 },
-    transferRow: { height: 36, position: "relative" as const, gap: 9 },
+    transferRow: { minHeight: 40, position: "relative" as const, gap: 9 },
     queueTitle: { color: colors.foreground, fontSize: 13, lineHeight: 20 },
-    iconSlot: { width: 24, height: 28, alignItems: "center" as const, justifyContent: "center" as const, flexShrink: 0 },
+    iconSlot: { width: 36, height: 36, alignItems: "center" as const, justifyContent: "center" as const, flexShrink: 0 },
     fileIcon: { width: 16, height: 28, alignItems: "center" as const, justifyContent: "center" as const, flexShrink: 0 },
-    retryButton: { padding: 6 },
+    retryButton: { minWidth: 36, minHeight: 36, alignItems: "center" as const, justifyContent: "center" as const },
     error: { color: colors.statusDanger, fontSize: 11, lineHeight: 16, marginLeft: 25, paddingBottom: 4 },
     track: { position: "absolute" as const, height: 2, left: 25, right: 33, bottom: 0, borderRadius: 1, backgroundColor: colors.surface2, overflow: "hidden" as const },
     fill: { height: 2, backgroundColor: colors.foregroundMuted },
