@@ -12,7 +12,7 @@ See [OVERVIEW.md](OVERVIEW.md) for requirements and what the plugin reads and ru
 
 ## File transfer
 
-Send files from your computer to the host a workspace runs on, and receive files the agent wrote, from **+ → File transfer** or the **Files** button in the composer. Nothing goes through the agent, so its context is untouched. See [docs/file-transfer.md](docs/file-transfer.md).
+Send files from your computer to the host a workspace runs on, and receive files the agent wrote, from the icon in the workspace header, **⌘K → File transfer**, or **+ → File transfer**. Nothing goes through the agent, so its context is untouched. See [docs/file-transfer.md](docs/file-transfer.md).
 
 ## Agent previews (Paseo 0.14 beta)
 

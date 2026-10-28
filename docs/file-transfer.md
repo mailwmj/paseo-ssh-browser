@@ -18,8 +18,12 @@ the agent and without adding anything to its context.
 
 Paseo has no extension point for file context menus, so the plugin uses what exists:
 
-- **Composer pill "Files"**: per agent, next to Tasks and Subagents. Its popover lists files recently
-  changed in the workspace, so a file an agent just wrote is two clicks from the desktop.
+- **Header icon**: an icon-only button in the workspace header, with no label. Its popover lists
+  files recently changed in the workspace, so a file an agent just wrote is two clicks from the
+  desktop. It belongs to the workspace, not an agent, so it also works before an agent exists. A
+  composer pill was tried and dropped: Paseo pills always carry a text label, which is too heavy for
+  something used occasionally.
+- **Command Center (⌘K)**: "File transfer" opens the panel, with nothing on screen until asked for.
 - **Files panel** (Explorer and workspace tab): the same list plus choosing desktop files to send, a
   remote path field to receive, the receive folder, and recent transfers.
 
@@ -28,7 +32,7 @@ Paseo has no extension point for file context menus, so the plugin uses what exi
 1. I pick several desktop files, choose or accept a remote folder, press Send, and they arrive there.
 2. I see progress per file, can cancel one, and see the remote path when it finishes.
 3. The remote folder defaults to the workspace and remembers my last choice per workspace.
-4. After an agent writes a file, I open the Files pill, tick one or more files, and receive them.
+4. After an agent writes a file, I open the header icon, tick one or more files, and receive them.
 5. I type a remote path (absolute, `~`, or relative to the workspace) and receive that file.
 6. A finished receive offers "Show in folder"; a finished send offers "Copy path".
 7. A file that already exists at the destination is never overwritten; the new one is saved as

@@ -6,7 +6,7 @@ import { startOpenClient } from "./client/open-client";
 import { buildLocalApi, publishLocalApi, RPCS } from "./client/bridge";
 import { BrowserPanel } from "./client/browser-panel";
 import { FilesPanel } from "./client/files-panel";
-import { startFilesPills } from "./client/files-pills";
+import { startFilesButtons } from "./client/files-button";
 import { messages } from "./client/messages";
 import { PortsScreen } from "./client/ports-screen";
 import { readHostRegistry } from "./client/web";
@@ -44,7 +44,17 @@ export default function contribute(client: PluginClientContext) {
     locations: ["workspace", "explorer"],
     Component: FilesPanel,
   });
-  const stopFilesPills = startFilesPills(client);
+  client.addCommandCenterItem({
+    id: "open-files",
+    title: messages.message("files"),
+    icon: "ArrowLeftRight",
+    keywords: ["send", "receive", "upload", "download", "transfer", "file", "scp"],
+    context: "workspace",
+    onSelect({ openPanel }) {
+      openPanel("files");
+    },
+  });
+  const stopFilesButtons = startFilesButtons(client);
   const stopOpenClient = startOpenClient(client, automaticBrowser);
   client.addCommandCenterItem({
     id: "open-ports",
@@ -91,7 +101,7 @@ export default function contribute(client: PluginClientContext) {
 
   return () => {
     stopped = true;
-    stopFilesPills();
+    stopFilesButtons();
     stopOpenClient();
     unpublish();
   };
