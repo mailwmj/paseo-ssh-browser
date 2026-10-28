@@ -2,7 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useHosts, useTranslation, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon, Modal, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Animated, Easing, Pressable, Text, View } from "react-native";
 import { sshTarget } from "../shared/ports";
 import { groupPortsByWorkspace, workspaceLabel } from "./format";
@@ -108,7 +108,7 @@ export function PortsScreen({ theme, layout, navigation }: PluginScreenProps) {
       </View>
 
       <Modal title={t("selectHost")} open={selectingHost} onOpenChange={setSelectingHost}>
-        <Modal.Content>
+        <Modal.Content contentContainerStyle={styles.dialogList}>
           {sections.map((item) => (
             <View key={item.target} style={styles.hostRow}>
               <Pressable accessibilityRole="button" accessibilityState={{ selected: item.target === selected?.target }}
@@ -288,52 +288,64 @@ function PortCard({ row, opening, forwardStatus, styles, theme, workspaces, onOp
         <Icon name="Ellipsis" size={18} color={theme.colors.foregroundMuted} />
       </Pressable> : null}
       <Modal title={title} open={actionsOpen} onOpenChange={setActionsOpen}>
-        <Modal.Content>
-          {row.workspaceId ? <Pressable accessibilityRole="button" onPress={() => { setActionsOpen(false); onOpen({ external: true }); }} style={styles.menuAction}>
-            <Icon name="ExternalLink" size={16} color={theme.colors.foregroundMuted} />
-            <Text style={styles.menuActionText}>{t("openExternal", { title })}</Text>
-          </Pressable> : workspaces.length > 0 ? <Pressable accessibilityRole="button" onPress={() => { setActionsOpen(false); setSelectingWorkspace(true); }} style={styles.menuAction}>
-            <Icon name="Folder" size={16} color={theme.colors.foregroundMuted} />
+        <Modal.Content contentContainerStyle={styles.dialogList}>
+          {row.workspaceId ? <DialogRow styles={styles} onPress={() => { setActionsOpen(false); onOpen({ external: true }); }}>
+            <Icon name="ExternalLink" size={17} color={theme.colors.foregroundMuted} />
+            <Text style={styles.menuActionText}>{t("openExternal")}</Text>
+          </DialogRow> : workspaces.length > 0 ? <DialogRow styles={styles} onPress={() => { setActionsOpen(false); setSelectingWorkspace(true); }}>
+            <Icon name="Folder" size={17} color={theme.colors.foregroundMuted} />
             <Text style={styles.menuActionText}>{t("openInWorkspace")}</Text>
-          </Pressable> : null}
-          {row.pid !== null && row.startedAt !== null ? (
-            <Pressable accessibilityRole="button" onPress={() => { setActionsOpen(false); setConfirmStop(true); }} style={styles.menuAction}>
-              <Icon name="Square" size={16} color={theme.colors.statusDanger} />
-              <Text style={[styles.menuActionText, { color: theme.colors.statusDanger }]}>{t("stopService")}</Text>
-            </Pressable>
-          ) : null}
+            <Icon name="ChevronRight" size={16} color={theme.colors.foregroundMuted} />
+          </DialogRow> : null}
           {forward || row.disconnected ? (
-            <Pressable accessibilityRole="button" onPress={() => void close()} style={styles.menuAction}>
-              <Icon name="Unplug" size={16} color={theme.colors.foregroundMuted} />
+            <DialogRow styles={styles} onPress={() => void close()}>
+              <Icon name="Unplug" size={17} color={theme.colors.foregroundMuted} />
               <Text style={styles.menuActionText}>{t("unplug", { port: row.port })}</Text>
-            </Pressable>
+            </DialogRow>
+          ) : null}
+          {row.pid !== null && row.startedAt !== null ? (
+            <DialogRow styles={styles} onPress={() => { setActionsOpen(false); setConfirmStop(true); }}>
+              <Icon name="Square" size={17} color={theme.colors.statusDanger} />
+              <Text style={[styles.menuActionText, styles.dangerText]}>{t("stopService")}</Text>
+            </DialogRow>
           ) : null}
         </Modal.Content>
       </Modal>
       <Modal title={t("stopService")} open={confirmStop} onOpenChange={setConfirmStop}>
-        <Modal.Content>
-          <Text style={styles.muted}>{t("stopServiceConfirm", { port: row.port, pid: row.pid ?? 0 })}</Text>
-          <Pressable accessibilityRole="button" onPress={() => { setConfirmStop(false); setClosing(true); void onStop().finally(() => setClosing(false)); }} style={styles.menuAction}>
-            <Text style={[styles.menuActionText, { color: theme.colors.statusDanger }]}>{t("stopService")}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => setConfirmStop(false)} style={styles.menuAction}>
-            <Text style={styles.menuActionText}>{t("cancel")}</Text>
-          </Pressable>
+        <Modal.Content contentContainerStyle={styles.confirmContent}>
+          <Text style={styles.confirmMessage}>{t("stopServiceConfirm", { port: row.port, pid: row.pid ?? 0 })}</Text>
+          <View style={styles.confirmActions}>
+            <Pressable accessibilityRole="button" onPress={() => setConfirmStop(false)} style={({ pressed }) => [styles.confirmButton, styles.cancelConfirm, pressed && styles.pressed]}>
+              <Text style={styles.confirmButtonText}>{t("cancel")}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { setConfirmStop(false); setClosing(true); void onStop().finally(() => setClosing(false)); }} style={({ pressed }) => [styles.confirmButton, styles.stopConfirm, pressed && styles.pressed]}>
+              <Text style={[styles.confirmButtonText, styles.dangerText]}>{t("stopService")}</Text>
+            </Pressable>
+          </View>
         </Modal.Content>
       </Modal>
       <Modal title={t("selectWorkspace")} open={selectingWorkspace} onOpenChange={setSelectingWorkspace}>
-        <Modal.Content>
-          <ScrollView style={styles.workspaceChoices}>
-            {workspaces.map((workspace) => (
-              <Pressable key={workspace.id} accessibilityRole="button" onPress={() => { setSelectingWorkspace(false); onOpen({ workspaceId: workspace.id }); }} style={styles.menuAction}>
-                <Icon name="Folder" size={16} color={theme.colors.foregroundMuted} />
-                <Text style={styles.menuActionText}>{workspaceLabel(workspace)}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+        <Modal.Content contentContainerStyle={styles.dialogList}>
+          {workspaces.map((workspace) => (
+            <DialogRow key={workspace.id} styles={styles} onPress={() => { setSelectingWorkspace(false); onOpen({ workspaceId: workspace.id }); }}>
+              <Icon name="Folder" size={17} color={theme.colors.foregroundMuted} />
+              <Text style={styles.menuActionText}>{workspaceLabel(workspace)}</Text>
+              <Icon name="ChevronRight" size={16} color={theme.colors.foregroundMuted} />
+            </DialogRow>
+          ))}
         </Modal.Content>
       </Modal>
     </View>
+  );
+}
+
+function DialogRow({ styles, onPress, children }: { styles: Styles; onPress: () => void; children: ReactNode }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
+      style={({ pressed }) => [styles.menuAction, (hovered || pressed) && styles.menuActionHover]}>
+      {children}
+    </Pressable>
   );
 }
 
@@ -432,8 +444,8 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     toolText: { color: colors.foreground, fontSize: 13 },
     pressed: { opacity: 0.65 }, disabled: { opacity: 0.5 },
     notice: { color: colors.foregroundMuted, fontSize: 13, lineHeight: 20 },
-    hostRow: { flexDirection: "row" as const, alignItems: "center" as const },
-    hostChoice: { flex: 1, minHeight: 44, flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
+    hostRow: { flexDirection: "row" as const, alignItems: "center" as const, borderRadius: 6 },
+    hostChoice: { flex: 1, minHeight: 44, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingHorizontal: 12 },
     hostChoiceText: { flex: 1, color: colors.foreground, fontSize: 14 },
     removeHost: { minHeight: 44, paddingHorizontal: 12, justifyContent: "center" as const },
     hostActionText: { color: colors.foregroundMuted, fontSize: 13 },
@@ -461,9 +473,18 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     actionHover: { position: "absolute" as const, top: 0, right: 0, bottom: 0, left: 0, borderRadius: 6, backgroundColor: colors.foreground },
     openActionText: { color: colors.foreground, fontSize: 13 },
     cardMenu: { position: "absolute" as const, right: 8, top: 8, width: 36, height: 36, alignItems: "center" as const, justifyContent: "center" as const },
-    menuAction: { minHeight: 44, flexDirection: "row" as const, alignItems: "center" as const, gap: 12 },
-    workspaceChoices: { maxHeight: 400 },
-    menuActionText: { flex: 1, color: colors.foreground, fontSize: 14 },
+    dialogList: { paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
+    menuAction: { minHeight: 46, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 6 },
+    menuActionHover: { backgroundColor: colors.surface2 },
+    menuActionText: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 14, lineHeight: 20 },
+    dangerText: { color: colors.statusDanger },
+    confirmContent: { padding: 24, gap: 24 },
+    confirmMessage: { color: colors.foregroundMuted, fontSize: 14, lineHeight: 21 },
+    confirmActions: { flexDirection: "row" as const, flexWrap: "wrap" as const, justifyContent: "flex-end" as const, gap: 8 },
+    confirmButton: { minHeight: 38, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6, alignItems: "center" as const, justifyContent: "center" as const },
+    cancelConfirm: { backgroundColor: colors.surface2 },
+    stopConfirm: { borderWidth: 1, borderColor: colors.statusDanger },
+    confirmButtonText: { color: colors.foreground, fontSize: 13, fontWeight: "600" as const },
     loadingState: { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
     emptyHosts: { alignItems: "center" as const, gap: 8, paddingTop: compact ? 20 : 32 },
     emptyIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: colors.surface1 },
